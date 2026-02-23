@@ -10,6 +10,11 @@
                                        ░  ░ ░
 ```
 
+
+https://github.com/user-attachments/assets/d1e5f848-176f-43cb-85bb-3d518e5b0bdd
+
+
+
 A collection of extensions, skills, and themes for [Pi](https://github.com/badlogic/pi), the AI coding agent for the terminal.
 
 Extensions range from visual UI enhancements (custom footer, leader key palette, session switcher) to deep integrations (web search, code review, Ghostty terminal support). Everything is MIT licensed and designed to be installed together or individually.
