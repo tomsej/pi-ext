@@ -1,0 +1,51 @@
+[
+  {
+    "key": "a",
+    "label": "Antigravity Opus 4.6",
+    "provider": "google-antigravity",
+    "model": "claude-opus-4-6-thinking",
+    "thinking": "medium"
+  },
+  {
+    "key": "s",
+    "label": "Antigravity Sonnet 4.5",
+    "provider": "google-antigravity",
+    "model": "claude-sonnet-4-5-thinking",
+    "thinking": "medium"
+  },
+  {
+    "key": "d",
+    "label": "Anthropic Opus 4.6",
+    "provider": "anthropic",
+    "model": "claude-opus-4-6",
+    "thinking": "medium"
+  },
+  {
+    "key": "f",
+    "label": "Anthropic Sonnet 4.6",
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "thinking": "medium"
+  },
+  {
+    "key": "j",
+    "label": "OpenAI GPT-5.3",
+    "provider": "openai",
+    "model": "gpt-5.3-codex",
+    "thinking": "medium"
+  },
+  {
+    "key": "k",
+    "label": "Copilot Opus 4.6",
+    "provider": "github-copilot",
+    "model": "claude-opus-4.6",
+    "thinking": "medium"
+  },
+  {
+    "key": "l",
+    "label": "Copilot Sonnet 4.6",
+    "provider": "github-copilot",
+    "model": "claude-sonnet-4.6",
+    "thinking": "medium"
+  }
+]

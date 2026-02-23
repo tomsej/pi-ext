@@ -1,0 +1,26 @@
+{
+  "name": "pi-ext",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Personal collection of Pi extensions, themes, and skills.",
+  "keywords": ["pi-package", "pi", "pi-coding-agent"],
+  "license": "MIT",
+  "pi": {
+    "extensions": [
+      "./extensions/context/context.ts",
+      "./extensions/custom-footer/custom-footer.ts",
+      "./extensions/ghostty/ghostty.ts",
+      "./extensions/pi-web-access/index.ts",
+      "./extensions/review/review.ts",
+      "./extensions/todos/todos.ts",
+      "./extensions/leader-key/index.ts",
+      "./extensions/session-switch/index.ts"
+    ],
+    "skills": [
+      "./skills/commit",
+      "./skills/github",
+      "./skills/librarian"
+    ],
+    "themes": ["./themes"]
+  }
+}
