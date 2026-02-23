@@ -14,7 +14,7 @@ A collection of extensions, skills, and themes for [Pi](https://github.com/badlo
 
 Extensions range from visual UI enhancements (custom footer, leader key palette, session switcher) to deep integrations (web search, code review, Ghostty terminal support). Everything is MIT licensed and designed to be installed together or individually.
 
-https://github.com/user-attachments/assets/PLACEHOLDER
+https://github.com/tomsej/pi-ext/releases/download/v0.1.0/demo.mp4
 
 > *Leader key palette → model switcher → session picker → code review*
 
