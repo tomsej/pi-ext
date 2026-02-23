@@ -14,7 +14,7 @@ A collection of extensions, skills, and themes for [Pi](https://github.com/badlo
 
 Extensions range from visual UI enhancements (custom footer, leader key palette, session switcher) to deep integrations (web search, code review, Ghostty terminal support). Everything is MIT licensed and designed to be installed together or individually.
 
-https://github.com/tomsej/pi-ext/releases/download/v0.1.0/demo.mp4
+<video src="https://github.com/tomsej/pi-ext/releases/download/v0.1.0/demo.mp4" controls autoplay muted loop width="100%"></video>
 
 > *Leader key palette → model switcher → session picker → code review*
 
@@ -28,7 +28,6 @@ Or install individual extensions:
 
 ```bash
 pi install github:tomsej/pi-ext/extensions/leader-key
-pi install github:tomsej/pi-ext/extensions/pi-web-access
 ```
 
 Requires [Pi](https://github.com/badlogic/pi) v0.37.3+.
