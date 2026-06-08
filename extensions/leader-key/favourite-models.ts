@@ -17,7 +17,7 @@ import { matchesKey, Key } from "@mariozechner/pi-tui";
 import { OverlayFrame } from "../shared/overlay.js";
 import { readFileSync } from "node:fs";
 import { join, dirname } from "node:path";
-import { ALL_THINKING_LEVELS } from "./model-switcher";
+import { ALL_THINKING_LEVELS, getCurrentThinkingLevel, setCurrentThinkingLevel } from "./model-switcher";
 import { THINKING_ROLES } from "../shared/thinking-colors.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -78,7 +78,7 @@ export async function runFavouriteModels(pi: ExtensionAPI, ctx: ExtensionContext
 	}
 
 	const currentModel = ctx.model;
-	const currentThinking = pi.getThinkingLevel();
+	const currentThinking = getCurrentThinkingLevel(pi);
 
 	// Build per-entry thinking indices
 	const thinkingIndices: number[] = favourites.map((fav) => {
@@ -213,7 +213,7 @@ export async function runFavouriteModels(pi: ExtensionAPI, ctx: ExtensionContext
 		ctx.ui.notify(`No API key available for ${selected.fav.provider}/${selected.fav.model}`, "warning");
 		return;
 	}
-	pi.setThinkingLevel(selected.thinking);
+	setCurrentThinkingLevel(pi, selected.thinking);
 
 	ctx.ui.notify(
 		`Switched to ${selected.fav.label} (thinking: ${selected.thinking})`,

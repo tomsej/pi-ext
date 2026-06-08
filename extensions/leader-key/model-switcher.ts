@@ -16,6 +16,27 @@ import { fuzzyFilter, Key, matchesKey } from "@mariozechner/pi-tui";
 import { OverlayFrame } from "../shared/overlay.js";
 
 export const ALL_THINKING_LEVELS: ThinkingLevel[] = ["off", "minimal", "low", "medium", "high", "xhigh"];
+const GET_EFFECTIVE_THINKING_EVENT = "model-profiles:get-effective-thinking";
+const SET_THINKING_OVERRIDE_EVENT = "model-profiles:set-thinking-override";
+
+function normalizeThinkingLevel(value: unknown): ThinkingLevel | undefined {
+	return typeof value === "string" && (ALL_THINKING_LEVELS as string[]).includes(value)
+		? value as ThinkingLevel
+		: undefined;
+}
+
+export function getCurrentThinkingLevel(pi: ExtensionAPI): ThinkingLevel {
+	const request = {} as { result?: { level?: unknown } };
+	pi.events.emit(GET_EFFECTIVE_THINKING_EVENT, request);
+	return normalizeThinkingLevel(request.result?.level) ?? pi.getThinkingLevel();
+}
+
+export function setCurrentThinkingLevel(pi: ExtensionAPI, level: ThinkingLevel): void {
+	const request = { level, handled: false } as { level: ThinkingLevel; handled?: boolean };
+	pi.events.emit(SET_THINKING_OVERRIDE_EVENT, request);
+	if (request.handled) return;
+	pi.setThinkingLevel(level);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helpers — only enabled & available providers & models
@@ -323,10 +344,10 @@ export async function runModelSwitcher(pi: ExtensionAPI, ctx: ExtensionContext):
 	}
 
 	const supportsReasoning = selectedModel.reasoning;
-	let selectedThinking: ThinkingLevel = pi.getThinkingLevel();
+	let selectedThinking: ThinkingLevel = getCurrentThinkingLevel(pi);
 
 	if (supportsReasoning) {
-		const currentThinking = pi.getThinkingLevel();
+		const currentThinking = getCurrentThinkingLevel(pi);
 
 		const thinkingItems: SearchableItem[] = ALL_THINKING_LEVELS.map((level) => {
 			const isCurrent = level === currentThinking;
@@ -356,7 +377,7 @@ export async function runModelSwitcher(pi: ExtensionAPI, ctx: ExtensionContext):
 	}
 
 	if (supportsReasoning) {
-		pi.setThinkingLevel(selectedThinking);
+		setCurrentThinkingLevel(pi, selectedThinking);
 	}
 
 	ctx.ui.notify(
@@ -391,7 +412,7 @@ export function getThinkingDescription(level: ThinkingLevel): string {
 export async function runThinkingPicker(pi: ExtensionAPI, ctx: ExtensionContext): Promise<void> {
 	if (!ctx.hasUI) return;
 
-	const currentThinking = pi.getThinkingLevel();
+	const currentThinking = getCurrentThinkingLevel(pi);
 
 	const thinkingItems: SearchableItem[] = ALL_THINKING_LEVELS.map((level) => {
 		const isCurrent = level === currentThinking;
@@ -410,6 +431,6 @@ export async function runThinkingPicker(pi: ExtensionAPI, ctx: ExtensionContext)
 
 	if (!choice) return;
 
-	pi.setThinkingLevel(choice);
+	setCurrentThinkingLevel(pi, choice);
 	ctx.ui.notify(`Thinking: ${choice}`, "info");
 }
