@@ -23,6 +23,7 @@
   "license": "MIT",
   "scripts": {
     "sem:evaluate": "node extensions/pi-sem/bin/sem-eval.mjs",
+    "test": "npm run test:pi-sem",
     "test:pi-sem": "node --test extensions/pi-sem/core.test.mjs extensions/review/sem-guidance.test.mjs",
     "flows:install": "mkdir -p ~/.pi/agent/taskflows && cp .pi/taskflows/*.json ~/.pi/agent/taskflows/ && ls ~/.pi/agent/taskflows/"
   },

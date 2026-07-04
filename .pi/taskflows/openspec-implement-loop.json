@@ -3,15 +3,15 @@
   "description": "Implement an OpenSpec change one task GROUP at a time (## sections in tasks.md) with fresh context per group, then a 2-models-per-angle review panel, arbiter verdict, and an informed fix round. Better than openspec-implement for large multi-task changes.",
   "strictInterpolation": true,
   "budget": {
-    "maxUSD": 15
+    "maxUSD": 40
   },
   "args": {
     "change": {
       "description": "OpenSpec change id under openspec/changes/<id>"
     },
     "verify": {
-      "default": "npm run test:pi-sem 2>&1 | tail -30",
-      "description": "Shell command for the build/test gate. Default suits pi-ext; override per project, e.g. verify='npx tsc --noEmit && npm test'."
+      "default": "( if [ -f justfile ] && command -v just >/dev/null 2>&1; then echo '[verify] just test'; just test; elif [ -f Cargo.toml ]; then echo '[verify] cargo test'; cargo test --workspace; elif [ -f go.mod ]; then echo '[verify] go test'; go test ./...; elif [ -f package.json ]; then echo '[verify] npm test'; npm test; elif [ -f pyproject.toml ]; then echo '[verify] pytest'; pytest; else echo '[verify] no test runner detected - pass verify=...'; fi ) 2>&1 | tail -60",
+      "description": "Shell command for the build/test check. Default auto-detects the project type (just/cargo/go/npm/pytest). Override per project when the default picks wrong."
     }
   },
   "phases": [
