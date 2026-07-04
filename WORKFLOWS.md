@@ -20,10 +20,23 @@ openspec init --tools pi                  # scaffolds openspec/ + /opsx-* prompt
 pi install npm:pi-taskflow                # taskflow extension → /tf commands + `taskflow` tool
 ```
 
-Copy `.pi/taskflows/*.json` into any repo you want the flows in (they're
-project-scoped). Optionally run `/tf init` in a Pi session to map taskflow's model
-roles (`{{fast}}`, `{{strong}}`, …) to specific models — **not required**: agents
-fall back to your Pi default model (Opus 4.8 here) when roles are unset.
+**Install the flows user-wide** so they work in every repo, not just pi-ext
+(taskflow resolves saved flows from project `.pi/taskflows/` first, then user
+`~/.pi/agent/taskflows/`):
+
+```bash
+npm run flows:install     # in pi-ext — copies .pi/taskflows/*.json to ~/.pi/agent/taskflows/
+```
+
+Re-run it whenever the flow definitions change here. Two session caveats:
+`/tf:<name>` shortcuts register at **session start** — after installing new
+flows, `/reload` (or restart) any running Pi session. And the flows shell out to
+the `openspec` CLI with the session's cwd, so run them from the repo that
+contains the `openspec/` root.
+
+Optionally run `/tf init` in a Pi session to map taskflow's model roles
+(`{{fast}}`, `{{strong}}`, …) to specific models — **not required**: agents fall
+back to your Pi default model (Opus 4.8 here) when roles are unset.
 
 ## The loop, end to end
 
