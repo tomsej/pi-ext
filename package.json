@@ -36,14 +36,10 @@
       "./extensions/session-query/session-query.ts",
       "./extensions/ask-user-question/index.ts",
       "./extensions/tool-pills/index.ts",
-      "./extensions/cmux/index.ts",
       "./extensions/superconductor/index.ts",
-      "./extensions/muxy-notify/index.ts",
       "./extensions/session-store/index.ts",
       "./extensions/pi-telescope/index.ts",
-      "./extensions/handoff/index.ts",
-      "./extensions/pi-sem/index.ts",
-      "./extensions/openspec-flow/index.ts"
+      "./extensions/pi-sem/index.ts"
     ],
     "skills": [
       "./skills/commit",

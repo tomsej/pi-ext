@@ -160,6 +160,51 @@ function buildEntries(
 		});
 	}
 
+	// ── Spec (OpenSpec workflow) ────────────────────────────────────────
+	const stageSpec = (cmd: string, hint: string) => (ctx: ExtensionContext) => {
+		ctx.ui.setEditorText(cmd);
+		ctx.ui.notify(hint, "info");
+	};
+	entries.push({
+		type: "group",
+		group: {
+			key: "c",
+			label: "Spec",
+			items: [
+				{
+					key: "e",
+					label: "Explore",
+					description: "openspec — investigate before proposing",
+					action: stageSpec("/opsx-explore (odpovídej vždy česky; file paths, kód a příkazy nech anglicky) ", "Describe what to explore, then Enter"),
+				},
+				{
+					key: "s",
+					label: "Spec",
+					description: "openspec — propose a change (proposal + specs + tasks)",
+					action: stageSpec("/opsx-propose ", "Describe the change, then Enter"),
+				},
+				{
+					key: "a",
+					label: "Apply",
+					description: "openspec — implement interactively in this session",
+					action: stageSpec("/opsx-apply ", "Optionally add a change name, then Enter"),
+				},
+				{
+					key: "r",
+					label: "Review",
+					description: "gate panel taskflow on the current working tree",
+					action: stageSpec("/tf:openspec-review ", 'Add change=<id> if needed, then Enter'),
+				},
+				{
+					key: "x",
+					label: "Archive",
+					description: "openspec — merge spec deltas and archive the change",
+					action: stageSpec("/opsx-archive ", "Optionally add a change name, then Enter"),
+				},
+			],
+		},
+	});
+
 	// ── Review / Annotate ───────────────────────────────────────────────
 	entries.push({
 		type: "action",

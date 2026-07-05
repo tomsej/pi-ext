@@ -134,15 +134,6 @@ export function buildSessionEntries(pi: ExtensionAPI): TopLevelEntry {
 					action: (ctx) => openSessionTree(pi, ctx),
 				},
 				{
-					key: "f",
-					label: "Fork session",
-					description: "fork into cmux split pane",
-					action: (ctx) => {
-						ctx.ui.setEditorText("/split-fork");
-						setTimeout(() => process.stdin.emit("data", "\r"), 0);
-					},
-				},
-				{
 					key: "c",
 					label: "Compact",
 					description: "LLM summary",

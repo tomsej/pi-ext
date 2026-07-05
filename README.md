@@ -55,7 +55,7 @@ Requires [Pi](https://github.com/badlogic/pi) v0.37.3+.
 
 ### [Leader Key](extensions/leader-key/)
 
-Press `Ctrl+X` to open a floating command palette — like Vim's which-key or Emacs' leader key. Actions are organized into single-character groups (`s` for Session, `m` for Model, `f` for Favourites, `t` for Thinking level, `l` for Labels). Auto-discovers extension commands and merges them with built-in actions.
+Press `Ctrl+X` to open a floating command palette — like Vim's which-key or Emacs' leader key. Actions are organized into single-character groups (`s` for Session, `m` for Model, `f` for Favourites, `t` for Thinking level, `l` for Labels, `c` for Spec — the OpenSpec explore/spec/apply/review/archive flow). Auto-discovers extension commands and merges them with built-in actions.
 
 Includes sub-modules:
 - **Model Switcher** — searchable provider → model → thinking level picker
@@ -131,10 +131,6 @@ Native integration with [Superconductor](https://superconductor.dev) via the `sc
 ### [Ask User Question](extensions/ask-user-question/)
 
 Registers an `ask_user_question` tool the model uses to ask 1–4 structured clarifying questions (with 2–4 options each) instead of asking in plain text. Interactive UI with optional multi-select and short header labels for a tab bar.
-
-### [OpenSpec Flow](extensions/openspec-flow/)
-
-`/spec` fronts the spec-driven workflow (see [WORKFLOWS.md](WORKFLOWS.md)): pick an OpenSpec change with task progress, then implement it via the gated taskflow (whole-change or per-group loop, recommended by change size), implement interactively via `/opsx-apply`, open plannotator review, validate, or archive. Stages commands in the editor so args like `verify="…"` can be tweaked before running.
 
 ## Skills
 
