@@ -13,7 +13,10 @@
 import { existsSync, readFileSync } from "node:fs";
 import { extname, relative } from "node:path";
 
+import { createWriteTool, createEditTool, keyHint } from "@mariozechner/pi-coding-agent";
+import { Text } from "@mariozechner/pi-tui";
 import { codeToANSI } from "@shikijs/cli";
+import { pill } from "./pill.js";
 import * as Diff from "diff";
 import type { BundledLanguage, BundledTheme } from "shiki";
 
@@ -1088,17 +1091,14 @@ async function renderSplit(
 export function registerDiffTools(pi: any): void {
 	applyDiffPalette();
 
-	let createWriteFn: any, createEditFn: any, TextComponent: any, pillFn: any, keyHintFn: any;
-	try {
-		const sdk = require("@mariozechner/pi-coding-agent");
-		createWriteFn = sdk.createWriteTool;
-		createEditFn = sdk.createEditTool;
-		keyHintFn = sdk.keyHint;
-		TextComponent = require("@mariozechner/pi-tui").Text;
-		pillFn = require("./pill.js").pill;
-	} catch {
-		return;
-	}
+	// Static imports (top of file) instead of runtime require():
+	// pi's jiti loader runs with moduleCache:false, so a require() here
+	// re-evaluated the entire SDK module graph (~700ms) on every startup.
+	const createWriteFn: any = createWriteTool;
+	const createEditFn: any = createEditTool;
+	const keyHintFn: any = keyHint;
+	const TextComponent: any = Text;
+	const pillFn: any = pill;
 	if (!createWriteFn || !createEditFn || !TextComponent) return;
 
 	const cwd = process.cwd();
