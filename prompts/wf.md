@@ -51,9 +51,9 @@ Gaty jsou to, co brání chainu pokračovat po nepovedené fázi — self-repor
   u dalších fází kritéria té fáze)
 - `evidence` nech jak je v templatu
 
-### Review fáze — default kola jsou v templatu, uprav je podle rizikovosti
+### Review fáze — slož ji podle kontraktu
 
-Template níže obsahuje defaultní složení (2 kola):
+Template níže obsahuje default pro běžnou změnu (2 kola):
 
 - **kolo 1** (paralelně): rychlý correctness/contract-compliance smoke
   (`openai-codex/gpt-5.6-luna`) + dva hloubkové reviewery na různých
@@ -62,17 +62,28 @@ Template níže obsahuje defaultní složení (2 kola):
 - **kolo 2**: jeden reviewer, re-review pouze oblastí změněných fixy
   (`openai-codex/gpt-5.6-sol`)
 
-Odchylky podle rizikovosti:
+Default ale slepě nekopíruj — z kontraktu odvoď, kolik reviewerů, jaké
+fokusy a kolik kol dává smysl, a fokusy hloubkových reviewerů nahraď/doplň
+z tohohle katalogu podle toho, na co změna sahá:
 
-- **triviální změna** (pár řádků, žádné nové API): 1 kolo, jen correctness
-  smoke na `openai-codex/gpt-5.6-luna`
-- **riziková změna**: 3 kola a přidej do kola 1 čtvrtého reviewera podle typu
-  rizika: auth/vstupy/secrets/trust boundaries → security fokus
-  (`anthropic/claude-opus-4-8`); velké zásahy do testů → test-quality fokus
-  — neoslabené asserty, žádné mock-everything (`openai-codex/gpt-5.6-sol`)
-- používej jen Opus a GPT modely (luna jen na rychlý smoke)
+| Fokus | Kdy | Model |
+|---|---|---|
+| security | auth, vstupy, secrets, trust boundaries | `anthropic/claude-opus-4-8` |
+| architecture | změny napříč moduly, nová veřejná API, nové závislosti | `anthropic/claude-opus-4-8` |
+| test-quality | velké zásahy do testů — neoslabené asserty, žádné mock-everything | `openai-codex/gpt-5.6-sol` |
+| performance | hot paths, dotazy, velká data, N+1 | `openai-codex/gpt-5.6-sol` |
+| data-safety | migrace, destruktivní operace, konzistence dat | `anthropic/claude-opus-4-8` |
+| over-engineering | hodně nového kódu, nové abstrakce | `anthropic/claude-opus-4-8` |
 
-Složení review mi v kroku Kontrola ukaž a nech si ho odsouhlasit.
+Řídi se rozsahem: **triviální změna** (pár řádků, žádné nové API) = 1 kolo,
+jen luna smoke. **Běžná** = default ± výměna fokusů. **Riziková** = 3 kola
+a klidně 3–4 revieweři v kole 1. Víc než 4 reviewery nikdy — překrývají se.
+
+Modely: jen Opus (`anthropic/claude-opus-4-8`) a GPT (`openai-codex/gpt-5.6-sol`,
+`openai-codex/gpt-5.5`); luna jen na rychlý smoke.
+
+Složení review mi v kroku Kontrola ukaž (kola, revieweři, fokusy, modely)
+a nech si ho odsouhlasit.
 
 ```json
 {
