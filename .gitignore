@@ -6,16 +6,12 @@ extensions/piff/dist/
 
 # --- pi state ---
 # Ignore all of .pi/ by default, then re-include the shared, version-controlled
-# assets (OpenSpec opsx prompts/skills + taskflow definitions). A child can't be
-# re-added while an ancestor dir stays ignored, so we un-ignore .pi/ itself and
-# re-ignore only the runtime-state subdirs.
+# assets (OpenSpec opsx prompts/skills). A child can't be re-added while an
+# ancestor dir stays ignored, so we un-ignore .pi/ itself and re-ignore only
+# runtime-state subdirs.
 .pi/*
 !.pi/prompts/
 !.pi/skills/
-!.pi/taskflows/
-.pi/taskflows/*
-!.pi/taskflows/*.json
-!.pi/taskflows/openspec-review-rules/
 
 # Nested pi runtime state that appears in subdirectories (e.g. task stores
 # created while running pi from inside extensions/). Only the root .pi/ is shared.
