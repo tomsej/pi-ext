@@ -24,7 +24,9 @@ Loop (default max 2 rounds unless the task says otherwise):
 4. Re-review only the areas that changed.
 
 Exit when a round produces no legitimate findings, or the round limit is hit.
+If legitimate findings remain unresolved at the round limit, this phase has
+FAILED — say so explicitly and reflect it in your acceptance report; never
+summarize an open issue away to look done.
 
 Report: findings fixed (with commits), findings rejected with code-level
-justification, and anything left unresolved — honestly, never hide an open
-issue to look done.
+justification, and anything left unresolved.

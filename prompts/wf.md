@@ -36,10 +36,39 @@ Odvoď kebab-case název `<name>` a zapiš (kontrakt anglicky):
 Template přizpůsob kontraktu:
 
 - doplň `<name>` a skutečnou cestu ke kontraktu do všech tasků
-- review fázi uprav podle rizikovosti změny: počet kol, počet reviewerů a
-  jejich modely zapiš přímo do task textu review kroku
 - fáze, které nedávají smysl, vynech (např. PR fáze u lokálního experimentu)
 - per-step `model` nastavuj jen s důvodem, jinak nech dědit default
+
+### Acceptance gaty — vyplň je z kontraktu, nikdy je nevynechávej
+
+Gaty jsou to, co brání chainu pokračovat po nepovedené fázi — self-report
+„hotovo“ se nepočítá:
+
+- `verified.verify[].command` = **kompletní kontrola z Ověření sekce
+  kontraktu** — pi-subagents ji spustí sám po doběhnutí kroku; child-reported
+  úspěch se nepočítá. Nenulový exit = krok selže a chain se zastaví
+- `criteria` = akceptační kritéria z kontraktu (u implementera všechna;
+  u dalších fází kritéria té fáze)
+- `evidence` nech jak je v templatu
+
+### Review fáze — slož ji konkrétně, žádné obecné „review“
+
+Do task textu review kroku zapiš explicitně:
+
+- **počet kol**: 1 u triviálních změn, 2 default, 3 u rizikových
+- **seznam reviewerů pro každé kolo** — každý řádek = fokus + model:
+  - vždy: `reviewer` — correctness + soulad s kontraktem (default model)
+  - změna sahá na auth/vstupy/secrets/trust boundaries → přidej reviewera se
+    security fokusem
+  - nové abstrakce, závislosti nebo hodně nového kódu → přidej reviewera
+    s over-engineering fokusem (co smazat/zjednodušit)
+  - velké zásahy do testů → přidej test-quality fokus (neoslabené asserty,
+    žádné mock-everything)
+- **model diversity**: u rizikových změn aspoň jeden reviewer na jiném
+  provideru, než běžela implementace (konkrétní model id do task textu;
+  když nevíš jaké modely mám enabled, zeptej se mě)
+
+Složení review mi v kroku Kontrola ukaž a nech si ho odsouhlasit.
 
 ```json
 {
@@ -50,25 +79,50 @@ Template přizpůsob kontraktu:
 			"agent": "implementer",
 			"phase": "Implement",
 			"label": "TDD implementation",
-			"task": "Implement the contract at .pi/chains/<name>/contract.md. Work strictly TDD per your instructions; stay inside the contract's scope."
+			"task": "Implement the contract at .pi/chains/<name>/contract.md. Work strictly TDD per your instructions; stay inside the contract's scope.",
+			"acceptance": {
+				"level": "verified",
+				"criteria": ["<each acceptance criterion from the contract, one entry per criterion>"],
+				"evidence": ["changed-files", "tests-added", "commands-run", "residual-risks"],
+				"verify": [
+					{ "id": "full-check", "command": "<full verification command from the contract>", "timeoutMs": 600000 }
+				]
+			}
 		},
 		{
 			"agent": "review-loop",
 			"phase": "Review",
 			"label": "Review loop",
-			"task": "Review the implementation against the contract at .pi/chains/<name>/contract.md. Max 2 rounds. Reviewers: one default `reviewer`."
+			"task": "Review the implementation against the contract at .pi/chains/<name>/contract.md. Rounds: max <N>. Spawn these reviewers each round (fresh context, read-only): <one line per reviewer: agent, focus, model — per the review composition rules>. Verify every finding against the code before fixing; if legitimate findings remain unresolved at the round limit, fail this phase.",
+			"acceptance": {
+				"level": "verified",
+				"criteria": ["No unresolved legitimate review findings remain"],
+				"evidence": ["changed-files", "commands-run", "residual-risks"],
+				"verify": [
+					{ "id": "full-check-after-fixes", "command": "<full verification command from the contract>", "timeoutMs": 600000 }
+				]
+			}
 		},
 		{
 			"agent": "pr-finisher",
 			"phase": "PR",
 			"label": "Draft PR + green CI",
-			"task": "Create a draft PR for this work using the business summary from the contract at .pi/chains/<name>/contract.md, then iterate until CI is green and all review comments are resolved. Never merge."
+			"task": "Create a draft PR for this work using the business summary from the contract at .pi/chains/<name>/contract.md, then iterate until CI is green and all review comments are resolved. Never merge.",
+			"acceptance": {
+				"level": "checked",
+				"criteria": ["Draft PR exists with the contract's business summary", "CI is green", "No unresolved review threads"],
+				"evidence": ["commands-run", "residual-risks", "no-staged-files"]
+			}
 		},
 		{
 			"agent": "uat",
 			"phase": "UAT",
 			"label": "UAT plan + handoff",
-			"task": "Run UAT for the contract at .pi/chains/<name>/contract.md: derive scenarios, execute what you can yourself, and finish with manual steps for the user in Czech."
+			"task": "Run UAT for the contract at .pi/chains/<name>/contract.md: derive scenarios, execute what you can yourself, and finish with manual steps for the user in Czech.",
+			"acceptance": {
+				"level": "attested",
+				"criteria": ["Every contract acceptance criterion is mapped to a UAT scenario", "Manual steps for the user are written in Czech"]
+			}
 		}
 	]
 }
