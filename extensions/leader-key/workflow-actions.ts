@@ -2,8 +2,9 @@
  * Workflow (contract + chain) leader-key group.
  *
  * New stages the /wf planner prompt (builds contract.md + a generated
- * .chain.json under .pi/chains/<name>/). Run pops a fuzzy picker over
- * discovered workflows and stages /run-chain for the chosen one.
+ * .chain.json under .pi/chains/<name>/). Run and Validate pop a fuzzy picker
+ * over discovered workflows: Run stages /run-chain, Validate stages
+ * /plannotator-annotate on the workflow folder.
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
@@ -16,6 +17,23 @@ interface Workflow {
 	name: string;
 	dir: string;
 	description?: string;
+}
+
+/** Pop a fuzzy picker over discovered workflows. Returns the chosen one, or null. */
+async function pickWorkflow(ctx: ExtensionContext, title: string): Promise<Workflow | null> {
+	const workflows: Workflow[] = discoverWorkflows(join(ctx.cwd, ".pi", "chains"));
+	if (workflows.length === 0) {
+		ctx.ui.notify("No workflows in .pi/chains — create one first (Workflow → New)", "info");
+		return null;
+	}
+	const items = workflows.map((w) => ({
+		value: w.name,
+		label: w.name,
+		description: w.description ?? w.dir,
+	}));
+	const name = await searchableSelect<string>(ctx, title, items);
+	if (!name) return null;
+	return workflows.find((w) => w.name === name) ?? null;
 }
 
 export function buildWorkflowEntries(_pi: ExtensionAPI): TopLevelEntry {
@@ -35,23 +53,24 @@ export function buildWorkflowEntries(_pi: ExtensionAPI): TopLevelEntry {
 					},
 				},
 				{
+					key: "v",
+					label: "Validate",
+					description: "pick a workflow, annotate its contract + chain in plannotator",
+					action: async (ctx: ExtensionContext) => {
+						const wf = await pickWorkflow(ctx, "Validate which workflow?");
+						if (!wf) return;
+						ctx.ui.setEditorText(`/plannotator-annotate ${wf.dir}/`);
+						ctx.ui.notify("Enter to open the workflow folder in plannotator", "info");
+					},
+				},
+				{
 					key: "r",
 					label: "Run",
 					description: "pick a contract, run its workflow chain",
 					action: async (ctx: ExtensionContext) => {
-						const workflows: Workflow[] = discoverWorkflows(join(ctx.cwd, ".pi", "chains"));
-						if (workflows.length === 0) {
-							ctx.ui.notify("No workflows in .pi/chains — create one first (Workflow → New)", "info");
-							return;
-						}
-						const items = workflows.map((w) => ({
-							value: w.name,
-							label: w.name,
-							description: w.description ?? w.dir,
-						}));
-						const name = await searchableSelect<string>(ctx, "Run which workflow?", items);
-						if (!name) return;
-						ctx.ui.setEditorText(`/run-chain ${name} -- execute the workflow per its contract`);
+						const wf = await pickWorkflow(ctx, "Run which workflow?");
+						if (!wf) return;
+						ctx.ui.setEditorText(`/run-chain ${wf.name} -- execute the workflow per its contract`);
 						ctx.ui.notify("Enter to run the workflow", "info");
 					},
 				},
