@@ -51,22 +51,22 @@ Gaty jsou to, co brání chainu pokračovat po nepovedené fázi — self-repor
   u dalších fází kritéria té fáze)
 - `evidence` nech jak je v templatu
 
-### Review fáze — slož ji konkrétně, žádné obecné „review“
+### Review fáze — default kola jsou v templatu, uprav je podle rizikovosti
 
-Do task textu review kroku zapiš explicitně:
+Template níže obsahuje defaultní složení (2 kola, GPT + Opus). Odchylky:
 
-- **počet kol**: 1 u triviálních změn, 2 default, 3 u rizikových
-- **seznam reviewerů pro každé kolo** — každý řádek = fokus + model:
-  - vždy: `reviewer` — correctness + soulad s kontraktem (default model)
-  - změna sahá na auth/vstupy/secrets/trust boundaries → přidej reviewera se
-    security fokusem
-  - nové abstrakce, závislosti nebo hodně nového kódu → přidej reviewera
-    s over-engineering fokusem (co smazat/zjednodušit)
-  - velké zásahy do testů → přidej test-quality fokus (neoslabené asserty,
-    žádné mock-everything)
-- **model diversity**: u rizikových změn aspoň jeden reviewer na jiném
-  provideru, než běžela implementace (konkrétní model id do task textu;
-  když nevíš jaké modely mám enabled, zeptej se mě)
+- **triviální změna** (pár řádků, žádné nové API): 1 kolo, jen correctness
+  reviewer (`openai-codex/gpt-5.6-sol`)
+- **riziková změna**: 3 kola a přidej do kola 1 třetího reviewera podle typu
+  rizika:
+  - auth/vstupy/secrets/trust boundaries → security fokus
+    (`anthropic/claude-opus-4-8`)
+  - velké zásahy do testů → test-quality fokus — neoslabené asserty, žádné
+    mock-everything (`openai-codex/gpt-5.6-sol`)
+- druhý reviewer v kole 1 má default fokus over-engineering/zjednodušení;
+  když z kontraktu plyne větší riziko jinde, změň mu fokus
+- používej jen Opus (`anthropic/claude-opus-4-8`) a GPT
+  (`openai-codex/gpt-5.6-sol`, `openai-codex/gpt-5.5`) modely
 
 Složení review mi v kroku Kontrola ukaž a nech si ho odsouhlasit.
 
@@ -93,7 +93,7 @@ Složení review mi v kroku Kontrola ukaž a nech si ho odsouhlasit.
 			"agent": "review-loop",
 			"phase": "Review",
 			"label": "Review loop",
-			"task": "Review the implementation against the contract at .pi/chains/<name>/contract.md. Rounds: max <N>. Spawn these reviewers each round (fresh context, read-only): <one line per reviewer: agent, focus, model — per the review composition rules>. Verify every finding against the code before fixing; if legitimate findings remain unresolved at the round limit, fail this phase.",
+			"task": "Review the implementation against the contract at .pi/chains/<name>/contract.md. Rounds: max 2. Round 1 — spawn in parallel (fresh context, read-only): reviewer (correctness + contract compliance, model openai-codex/gpt-5.6-sol) and reviewer (over-engineering — what to delete or simplify, model anthropic/claude-opus-4-8). Round 2 — reviewer (re-review only the areas changed by the fixes, model openai-codex/gpt-5.6-sol). Verify every finding against the code before fixing; if legitimate findings remain unresolved at the round limit, fail this phase.",
 			"acceptance": {
 				"level": "verified",
 				"criteria": ["No unresolved legitimate review findings remain"],
@@ -133,3 +133,8 @@ Složení review mi v kroku Kontrola ukaž a nech si ho odsouhlasit.
 Ukaž mi shrnutí kontraktu a vygenerovaný chain.json a zeptej se, jestli chci
 něco doladit. Nic nespouštěj — spuštění udělám sám (Ctrl+X → c → r,
 `/run-chain <name> -- <task>`).
+
+Připomenň mi u toho: když gate zastaví chain uprostřed, `/run-chain` znovu
+jede od začátku — menší zádrhely je rychlejší dořešit ručně v hlavní session
+a zbylé fáze spustit jednotlivě (`/run <agent> -- <task s cestou ke
+kontraktu>`).
