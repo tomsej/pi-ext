@@ -487,9 +487,8 @@ export default function reviewExtension(pi: ExtensionAPI) {
 		applyReviewState(ctx);
 	});
 
-	pi.on("session_switch", (_event, ctx) => {
-		applyReviewState(ctx);
-	});
+	// pi >=0.80: session_switch was removed — session_start fires on start,
+	// load, and reload (including switches), and is registered above.
 
 	pi.on("session_tree", (_event, ctx) => {
 		applyReviewState(ctx);

@@ -1,58 +1,64 @@
 {
-  "name": "pi-ext",
-  "version": "0.1.0",
-  "dependencies": {
-    "@benvargas/pi-claude-code-use": "^1.0.1",
-    "@mariozechner/pi-ai": "^0.69.0",
-    "@mariozechner/pi-coding-agent": "^0.69.0",
-    "@mariozechner/pi-tui": "^0.69.0",
-    "@sting8k/pi-vcc": "^0.3.5",
-    "@tintinweb/pi-tasks": "^0.4.2",
-    "pi-taskflow": "^0.1.5",
-    "typebox": "^1.1.32"
-  },
-  "optionalDependencies": {
-    "@ataraxy-labs/sem": "^0.3.21"
-  },
-  "description": "Personal collection of Pi extensions, themes, and skills.",
-  "keywords": [
-    "pi-package",
-    "pi",
-    "pi-coding-agent"
-  ],
-  "license": "MIT",
-  "scripts": {
-    "sem:evaluate": "node extensions/pi-sem/bin/sem-eval.mjs",
-    "test": "npm run test:pi-sem",
-    "test:pi-sem": "node --test extensions/pi-sem/core.test.mjs extensions/review/sem-guidance.test.mjs",
-    "flows:install": "mkdir -p ~/.pi/agent/taskflows && cp .pi/taskflows/*.json ~/.pi/agent/taskflows/ && ls ~/.pi/agent/taskflows/"
-  },
-  "pi": {
-    "extensions": [
-      "./extensions/custom-footer/custom-footer.ts",
-      "./extensions/review/review.ts",
-      "./extensions/leader-key/index.ts",
-      "./extensions/permissions/permissions.ts",
-      "./extensions/session-query/session-query.ts",
-      "./extensions/ask-user-question/index.ts",
-      "./extensions/tool-pills/index.ts",
-      "./extensions/superconductor/index.ts",
-      "./extensions/session-store/index.ts",
-      "./extensions/pi-telescope/index.ts",
-      "./extensions/pi-sem/index.ts"
-    ],
-    "skills": [
-      "./skills/commit",
-      "./skills/github",
-      "./skills/visit-webpage",
-      "./skills/web-search",
-      "./skills/session-query",
-      "./skills/sem",
-      "./skills/pr-review-comments"
-    ],
-    "themes": [
-      "./themes"
-    ]
-  },
-  "private": true
+	"name": "pi-ext",
+	"version": "0.1.0",
+	"dependencies": {
+		"@benvargas/pi-claude-code-use": "^1.0.1",
+		"@mariozechner/pi-agent-core": "npm:@earendil-works/pi-agent-core@^0.80.3",
+		"@mariozechner/pi-ai": "npm:@earendil-works/pi-ai@^0.80.3",
+		"@mariozechner/pi-coding-agent": "npm:@earendil-works/pi-coding-agent@^0.80.3",
+		"@mariozechner/pi-tui": "npm:@earendil-works/pi-tui@^0.80.3",
+		"@sting8k/pi-vcc": "^0.3.5",
+		"@tintinweb/pi-tasks": "^0.4.2",
+		"typebox": "^1.1.32"
+	},
+	"optionalDependencies": {
+		"@ataraxy-labs/sem": "^0.3.21"
+	},
+	"description": "Personal collection of Pi extensions, themes, and skills.",
+	"keywords": [
+		"pi-package",
+		"pi",
+		"pi-coding-agent"
+	],
+	"license": "MIT",
+	"scripts": {
+		"sem:evaluate": "node extensions/pi-sem/bin/sem-eval.mjs",
+		"test": "npm run test:pi-sem",
+		"test:pi-sem": "node --test extensions/pi-sem/core.test.mjs extensions/review/sem-guidance.test.mjs",
+		"typecheck": "tsc --noEmit -p tsconfig.json"
+	},
+	"pi": {
+		"extensions": [
+			"./extensions/custom-footer/custom-footer.ts",
+			"./extensions/review/review.ts",
+			"./extensions/leader-key/index.ts",
+			"./extensions/permissions/permissions.ts",
+			"./extensions/session-query/session-query.ts",
+			"./extensions/ask-user-question/index.ts",
+			"./extensions/tool-pills/index.ts",
+			"./extensions/pi-telescope/index.ts",
+			"./extensions/pi-sem/index.ts",
+			"./extensions/plannotator-annotate-tool/index.ts"
+		],
+		"skills": [
+			"./skills/commit",
+			"./skills/github",
+			"./skills/visit-webpage",
+			"./skills/web-search",
+			"./skills/session-query",
+			"./skills/sem",
+			"./skills/pr-review-comments",
+			"./skills/openspec-qa"
+		],
+		"prompts": [
+			"./prompts"
+		],
+		"themes": [
+			"./themes"
+		]
+	},
+	"private": true,
+	"devDependencies": {
+		"typescript": "^7.0.2"
+	}
 }

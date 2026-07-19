@@ -7,9 +7,11 @@
 
 import { visibleWidth, truncateToWidth } from "@mariozechner/pi-tui";
 
+// Method syntax (not arrow-property) so the real `Theme` class — whose fg()
+// takes the narrower ThemeColor union — stays assignable (bivariant method check).
 type ThemeLike = {
-	fg: (role: string, text: string) => string;
-	bold: (text: string) => string;
+	fg(role: string, text: string): string;
+	bold(text: string): string;
 };
 
 /** Pad a (possibly ANSI-styled) string to exact visible width. */

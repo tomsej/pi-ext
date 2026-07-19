@@ -93,12 +93,12 @@ export function collectLabeledEntries(tree: SessionTreeNode[]): LabeledEntry[] {
 		for (const node of nodes) {
 			if (node.label) {
 				let preview = "";
-				if (node.entry.type === "message") {
-					const msg = node.entry.message;
-					if (typeof msg.content === "string") {
-						preview = msg.content.slice(0, 60);
-					} else if (Array.isArray(msg.content)) {
-						const text = msg.content.find((c: any) => c.type === "text");
+				if (node.entry.type === "message" && "content" in node.entry.message) {
+					const content: unknown = node.entry.message.content;
+					if (typeof content === "string") {
+						preview = content.slice(0, 60);
+					} else if (Array.isArray(content)) {
+						const text = content.find((c: any) => c.type === "text");
 						if (text && "text" in text) preview = (text as any).text.slice(0, 60);
 					}
 				}

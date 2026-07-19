@@ -74,7 +74,8 @@ async function openSessionPicker(pi: ExtensionAPI, ctx: ExtensionContext) {
 					renameSession: async (sessionPath, currentName) => {
 						const name = (currentName ?? "").trim();
 						const mgr = SessionManager.open(sessionPath);
-						mgr.setSessionName(name || undefined);
+						// pi >=0.80: session name lives in a session_info entry.
+						mgr.appendSessionInfo(name);
 					},
 					showRenameHint: true,
 				},

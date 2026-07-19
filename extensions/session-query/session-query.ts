@@ -17,7 +17,9 @@
  * the model can use this tool to look up details from that session.
  */
 
-import { complete, type Message } from "@mariozechner/pi-ai";
+// pi >=0.80: `complete` moved to the compat entrypoint (the root package
+// alias resolves to compat at runtime anyway).
+import { complete, type Message } from "@mariozechner/pi-ai/compat";
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import {
 	SessionManager,

@@ -1,0 +1,21 @@
+{
+	"compilerOptions": {
+		"noEmit": true,
+		"strict": true,
+		"module": "preserve",
+		"moduleResolution": "bundler",
+		"target": "es2022",
+		"skipLibCheck": true,
+		"resolveJsonModule": true,
+		"allowImportingTsExtensions": true,
+		"types": [],
+		"paths": {
+			"@sting8k/pi-vcc/src/*": ["./stubs/pi-vcc-src.d.ts"],
+			"typebox": ["./node_modules/@mariozechner/pi-coding-agent/node_modules/typebox/build/index.d.mts"],
+			"typebox/*": ["./node_modules/@mariozechner/pi-coding-agent/node_modules/typebox/build/*"],
+			"@sinclair/typebox": ["./node_modules/@mariozechner/pi-coding-agent/node_modules/typebox/build/index.d.mts"],
+			"@sinclair/typebox/*": ["./node_modules/@mariozechner/pi-coding-agent/node_modules/typebox/build/*"]
+		}
+	},
+	"include": ["extensions/**/*.ts", "types.d.ts"]
+}
