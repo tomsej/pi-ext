@@ -24,7 +24,15 @@ interface Workflow {
 	name: string;
 	dir: string;
 	description?: string;
+	createdMs: number;
 	steps: WorkflowStep[];
+}
+
+/** Compact local timestamp, e.g. "2025-01-30 14:07". */
+function fmtDate(ms: number): string {
+	const d = new Date(ms);
+	const p = (n: number) => String(n).padStart(2, "0");
+	return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 }
 
 /** Pop a fuzzy picker over discovered workflows. Returns the chosen one, or null. */
@@ -37,7 +45,7 @@ async function pickWorkflow(ctx: ExtensionContext, title: string): Promise<Workf
 	const items = workflows.map((w) => ({
 		value: w.name,
 		label: w.name,
-		description: w.description ?? w.dir,
+		description: w.description ? `${fmtDate(w.createdMs)} · ${w.description}` : fmtDate(w.createdMs),
 	}));
 	const name = await searchableSelect<string>(ctx, title, items);
 	if (!name) return null;

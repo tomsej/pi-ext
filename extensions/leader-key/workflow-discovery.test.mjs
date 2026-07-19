@@ -43,6 +43,22 @@ test("discovers workflow dirs with contract.md and *.chain.json", () => {
 		["implementer", "uat"],
 	);
 	assert.equal(found[0].steps[0].label, "TDD");
+	assert.equal(typeof found[0].createdMs, "number");
+	assert.ok(found[0].createdMs > 0);
+});
+
+test("sorts workflows newest first by creation time", () => {
+	const root = setup();
+	for (const name of ["a", "b", "c"]) {
+		const dir = join(root, name);
+		mkdirSync(dir);
+		writeFileSync(join(dir, "contract.md"), "x");
+		writeFileSync(join(dir, `${name}.chain.json`), JSON.stringify({ name, chain: [] }));
+	}
+	const found = discoverWorkflows(root);
+	for (let i = 1; i < found.length; i++) {
+		assert.ok(found[i - 1].createdMs >= found[i].createdMs, "descending by createdMs");
+	}
 });
 
 test("skips dirs missing contract.md or chain.json and unparseable JSON", () => {

@@ -6,13 +6,14 @@
  * unit-tested with node --test.
  */
 
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 /**
  * Scan a chains directory for workflow folders.
  * @param {string} chainsDir absolute path to .pi/chains
- * @returns {Array<{ name: string, dir: string, description?: string, steps: Array<{ agent: string, label?: string, task: string }> }>}
+ * @returns {Array<{ name: string, dir: string, description?: string, createdMs: number, steps: Array<{ agent: string, label?: string, task: string }> }>}
+ * Sorted by creation time, newest first.
  */
 export function discoverWorkflows(chainsDir) {
 	if (!existsSync(chainsDir)) return [];
@@ -22,6 +23,8 @@ export function discoverWorkflows(chainsDir) {
 		const dir = join(chainsDir, entry.name);
 		const files = readdirSync(dir);
 		if (!files.includes("contract.md")) continue;
+		const stat = statSync(join(dir, "contract.md"));
+		const createdMs = stat.birthtimeMs || stat.mtimeMs;
 		const chainFile = files.find((f) => f.endsWith(".chain.json"));
 		if (!chainFile) continue;
 		let parsed;
@@ -44,7 +47,7 @@ export function discoverWorkflows(chainsDir) {
 						task: s.task,
 					}))
 			: [];
-		workflows.push({ name, dir, description, steps });
+		workflows.push({ name, dir, description, createdMs, steps });
 	}
-	return workflows.sort((a, b) => a.name.localeCompare(b.name));
+	return workflows.sort((a, b) => b.createdMs - a.createdMs);
 }
