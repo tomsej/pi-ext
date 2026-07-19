@@ -21,7 +21,15 @@ test("discovers workflow dirs with contract.md and *.chain.json", () => {
 	writeFileSync(join(dir, "contract.md"), "# contract");
 	writeFileSync(
 		join(dir, "add-auth.chain.json"),
-		JSON.stringify({ name: "add-auth", description: "Add user auth", chain: [] }),
+		JSON.stringify({
+			name: "add-auth",
+			description: "Add user auth",
+			chain: [
+				{ agent: "implementer", label: "TDD", task: "do it" },
+				{ expand: {}, parallel: { agent: "reviewer" } },
+				{ agent: "uat", task: "test it" },
+			],
+		}),
 	);
 
 	const found = discoverWorkflows(root);
@@ -29,6 +37,12 @@ test("discovers workflow dirs with contract.md and *.chain.json", () => {
 	assert.equal(found[0].name, "add-auth");
 	assert.equal(found[0].description, "Add user auth");
 	assert.equal(found[0].dir, dir);
+	// only simple agent+task steps, parallel/fanout groups skipped
+	assert.deepEqual(
+		found[0].steps.map((s) => s.agent),
+		["implementer", "uat"],
+	);
+	assert.equal(found[0].steps[0].label, "TDD");
 });
 
 test("skips dirs missing contract.md or chain.json and unparseable JSON", () => {

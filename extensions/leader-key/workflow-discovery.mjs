@@ -12,7 +12,7 @@ import { join } from "node:path";
 /**
  * Scan a chains directory for workflow folders.
  * @param {string} chainsDir absolute path to .pi/chains
- * @returns {Array<{ name: string, dir: string, description?: string }>}
+ * @returns {Array<{ name: string, dir: string, description?: string, steps: Array<{ agent: string, label?: string, task: string }> }>}
  */
 export function discoverWorkflows(chainsDir) {
 	if (!existsSync(chainsDir)) return [];
@@ -34,7 +34,17 @@ export function discoverWorkflows(chainsDir) {
 		}
 		const name = typeof parsed.name === "string" && parsed.name ? parsed.name : entry.name;
 		const description = typeof parsed.description === "string" ? parsed.description : undefined;
-		workflows.push({ name, dir, description });
+		// Only simple sequential steps (agent + task); skip parallel/fanout groups.
+		const steps = Array.isArray(parsed.chain)
+			? parsed.chain
+					.filter((s) => s && typeof s.agent === "string" && typeof s.task === "string")
+					.map((s) => ({
+						agent: s.agent,
+						label: typeof s.label === "string" ? s.label : undefined,
+						task: s.task,
+					}))
+			: [];
+		workflows.push({ name, dir, description, steps });
 	}
 	return workflows.sort((a, b) => a.name.localeCompare(b.name));
 }

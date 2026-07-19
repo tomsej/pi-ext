@@ -2,9 +2,10 @@
  * Workflow (contract + chain) leader-key group.
  *
  * New stages the /wf planner prompt (builds contract.md + a generated
- * .chain.json under .pi/chains/<name>/). Run and Validate pop a fuzzy picker
- * over discovered workflows: Run stages /run-chain, Validate stages
- * /plannotator-annotate on the workflow folder.
+ * .chain.json under .pi/chains/<name>/). Validate, Run, and Phase pop a fuzzy
+ * picker over discovered workflows: Validate stages /plannotator-annotate on
+ * the folder, Run stages /run-chain for the whole chain, Phase stages /run
+ * for a single chosen step (re-run after a mid-chain failure).
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
@@ -13,10 +14,17 @@ import type { TopLevelEntry } from "./types.js";
 import { searchableSelect } from "./model-switcher.js";
 import { discoverWorkflows } from "./workflow-discovery.mjs";
 
+interface WorkflowStep {
+	agent: string;
+	label?: string;
+	task: string;
+}
+
 interface Workflow {
 	name: string;
 	dir: string;
 	description?: string;
+	steps: WorkflowStep[];
 }
 
 /** Pop a fuzzy picker over discovered workflows. Returns the chosen one, or null. */
@@ -72,6 +80,29 @@ export function buildWorkflowEntries(_pi: ExtensionAPI): TopLevelEntry {
 						if (!wf) return;
 						ctx.ui.setEditorText(`/run-chain ${wf.name} -- execute the workflow per its contract`);
 						ctx.ui.notify("Enter to run the workflow", "info");
+					},
+				},
+				{
+					key: "p",
+					label: "Phase",
+					description: "pick a workflow + one phase, run just that agent (re-run after a failure)",
+					action: async (ctx: ExtensionContext) => {
+						const wf = await pickWorkflow(ctx, "Run one phase of which workflow?");
+						if (!wf) return;
+						if (wf.steps.length === 0) {
+							ctx.ui.notify("This workflow's chain has no simple agent steps", "info");
+							return;
+						}
+						const stepItems = wf.steps.map((s, i) => ({
+							value: String(i),
+							label: s.label ? `${s.agent} — ${s.label}` : s.agent,
+							description: s.task.length > 80 ? `${s.task.slice(0, 77)}...` : s.task,
+						}));
+						const idx = await searchableSelect<string>(ctx, "Run which phase?", stepItems);
+						if (idx === null) return;
+						const step = wf.steps[Number(idx)];
+						ctx.ui.setEditorText(`/run ${step.agent} ${step.task}`);
+						ctx.ui.notify("Enter to run just this phase (no acceptance gate)", "info");
 					},
 				},
 			],
