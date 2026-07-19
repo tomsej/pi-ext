@@ -2,7 +2,7 @@
  * plannotator_annotate tool — lets the agent open a markdown file in the
  * Plannotator annotation browser UI and wait for the user's decision.
  *
- * Used by the openspec-qa workflow: the agent generates qa.md, then calls this
+ * Used for manual QA/UAT handoff: the agent generates qa.md, then calls this
  * tool; the user walks through the checklist in the browser, annotates
  * failures, and hits Approve or submits feedback. The result comes back as the
  * tool result, so the agent can react (fix code, update qa.md, resubmit).
@@ -56,7 +56,7 @@ export default function (pi: ExtensionAPI) {
 			"Open a markdown file in the Plannotator annotation browser UI and wait for the user's review. " +
 			"The user can annotate the document and either Approve it or submit feedback. " +
 			"Returns the decision: approved, or the user's annotations as feedback. " +
-			"Use this for manual QA handoff (e.g. qa.md from the openspec-qa workflow) — call it instead of asking the user to run /plannotator-annotate. " +
+			"Use this for manual QA handoff (e.g. a generated qa.md checklist) — call it instead of asking the user to run /plannotator-annotate. " +
 			"Blocks until the user decides, which may take a while — that is expected.",
 		parameters: Type.Object({
 			filePath: Type.String({

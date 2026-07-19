@@ -29,7 +29,7 @@ import { copyToClipboard } from "../pi-telescope/clipboard.js";
 import type { ActionItem, ActionGroup, TopLevelEntry } from "./types.js";
 import { buildSessionEntries } from "./session-actions.js";
 import { buildLabelEntries } from "./label-actions.js";
-import { buildSpecEntries } from "./spec-actions.js";
+import { buildWorkflowEntries } from "./workflow-actions.js";
 import { registerBridgeCommands } from "./context-helpers.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -161,8 +161,8 @@ function buildEntries(
 		});
 	}
 
-	// ── Spec (OpenSpec workflow) ────────────────────────────────────────
-	entries.push(buildSpecEntries(pi));
+	// ── Workflow (contract + chain) ──────────────────────────────────
+	entries.push(buildWorkflowEntries(pi));
 
 	// ── Review / Annotate ───────────────────────────────────────────────
 	entries.push({

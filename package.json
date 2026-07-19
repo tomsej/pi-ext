@@ -23,8 +23,9 @@
 	"license": "MIT",
 	"scripts": {
 		"sem:evaluate": "node extensions/pi-sem/bin/sem-eval.mjs",
-		"test": "npm run test:pi-sem",
+		"test": "npm run test:pi-sem && npm run test:leader-key",
 		"test:pi-sem": "node --test extensions/pi-sem/core.test.mjs extensions/review/sem-guidance.test.mjs",
+		"test:leader-key": "node --test extensions/leader-key/workflow-discovery.test.mjs",
 		"typecheck": "tsc --noEmit -p tsconfig.json"
 	},
 	"pi": {
@@ -47,8 +48,7 @@
 			"./skills/web-search",
 			"./skills/session-query",
 			"./skills/sem",
-			"./skills/pr-review-comments",
-			"./skills/openspec-qa"
+			"./skills/pr-review-comments"
 		],
 		"prompts": [
 			"./prompts"
@@ -56,6 +56,9 @@
 		"themes": [
 			"./themes"
 		]
+	},
+	"pi-subagents": {
+		"agents": ["./agents"]
 	},
 	"private": true,
 	"devDependencies": {
