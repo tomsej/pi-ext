@@ -53,20 +53,24 @@ Gaty jsou to, co brání chainu pokračovat po nepovedené fázi — self-repor
 
 ### Review fáze — default kola jsou v templatu, uprav je podle rizikovosti
 
-Template níže obsahuje defaultní složení (2 kola, GPT + Opus). Odchylky:
+Template níže obsahuje defaultní složení (2 kola):
+
+- **kolo 1** (paralelně): rychlý correctness/contract-compliance smoke
+  (`openai-codex/gpt-5.6-luna`) + dva hloubkové reviewery na různých
+  modelech — `anthropic/claude-opus-4-8` (design + over-engineering) a
+  `openai-codex/gpt-5.6-sol` (bugs + edge cases)
+- **kolo 2**: jeden reviewer, re-review pouze oblastí změněných fixy
+  (`openai-codex/gpt-5.6-sol`)
+
+Odchylky podle rizikovosti:
 
 - **triviální změna** (pár řádků, žádné nové API): 1 kolo, jen correctness
-  reviewer (`openai-codex/gpt-5.6-sol`)
-- **riziková změna**: 3 kola a přidej do kola 1 třetího reviewera podle typu
-  rizika:
-  - auth/vstupy/secrets/trust boundaries → security fokus
-    (`anthropic/claude-opus-4-8`)
-  - velké zásahy do testů → test-quality fokus — neoslabené asserty, žádné
-    mock-everything (`openai-codex/gpt-5.6-sol`)
-- druhý reviewer v kole 1 má default fokus over-engineering/zjednodušení;
-  když z kontraktu plyne větší riziko jinde, změň mu fokus
-- používej jen Opus (`anthropic/claude-opus-4-8`) a GPT
-  (`openai-codex/gpt-5.6-sol`, `openai-codex/gpt-5.5`) modely
+  smoke na `openai-codex/gpt-5.6-luna`
+- **riziková změna**: 3 kola a přidej do kola 1 čtvrtého reviewera podle typu
+  rizika: auth/vstupy/secrets/trust boundaries → security fokus
+  (`anthropic/claude-opus-4-8`); velké zásahy do testů → test-quality fokus
+  — neoslabené asserty, žádné mock-everything (`openai-codex/gpt-5.6-sol`)
+- používej jen Opus a GPT modely (luna jen na rychlý smoke)
 
 Složení review mi v kroku Kontrola ukaž a nech si ho odsouhlasit.
 
@@ -93,7 +97,7 @@ Složení review mi v kroku Kontrola ukaž a nech si ho odsouhlasit.
 			"agent": "review-loop",
 			"phase": "Review",
 			"label": "Review loop",
-			"task": "Review the implementation against the contract at .pi/chains/<name>/contract.md. Rounds: max 2. Round 1 — spawn in parallel (fresh context, read-only): reviewer (correctness + contract compliance, model openai-codex/gpt-5.6-sol) and reviewer (over-engineering — what to delete or simplify, model anthropic/claude-opus-4-8). Round 2 — reviewer (re-review only the areas changed by the fixes, model openai-codex/gpt-5.6-sol). Verify every finding against the code before fixing; if legitimate findings remain unresolved at the round limit, fail this phase.",
+			"task": "Review the implementation against the contract at .pi/chains/<name>/contract.md. Rounds: max 2. Round 1 — spawn in parallel (fresh context, read-only): reviewer (fast correctness + contract compliance smoke, model openai-codex/gpt-5.6-luna), reviewer (deep review: design, what to delete or simplify, model anthropic/claude-opus-4-8), reviewer (deep review: bugs and edge cases, model openai-codex/gpt-5.6-sol). Round 2 — one reviewer (re-review only the areas changed by the fixes, model openai-codex/gpt-5.6-sol). Verify every finding against the code before fixing; if legitimate findings remain unresolved at the round limit, fail this phase.",
 			"acceptance": {
 				"level": "verified",
 				"criteria": ["No unresolved legitimate review findings remain"],
