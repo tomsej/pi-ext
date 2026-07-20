@@ -10,6 +10,7 @@
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
 import type { PermissionMode } from "../permissions/permissions.js";
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
+import { formatDuration } from "../worktime/worktime-core.mjs";
 import { execSync } from "node:child_process";
 import { existsSync, watch, type FSWatcher } from "node:fs";
 import { join } from "node:path";
@@ -40,6 +41,12 @@ function getGitBranch(cwd: string): string | null {
 export default function (pi: ExtensionAPI) {
 	let currentMode: PermissionMode = "safe";
 	let tuiRef: { requestRender(): void } | null = null;
+	let workedMs = 0;
+
+	pi.events.on("worktime:update", (data: unknown) => {
+		workedMs = (data as { ms?: number })?.ms ?? 0;
+		tuiRef?.requestRender();
+	});
 	let gitBranch: string | null = null;
 	let gitWatcher: FSWatcher | undefined;
 
@@ -125,8 +132,13 @@ export default function (pi: ExtensionAPI) {
 		const thinking = pi.getThinkingLevel();
 		const model = renderModelInfo(modelName, provider, thinking, theme);
 
+		// Worktime, appended inline after model/thinking: "… • high • ⏱ 21m 50s"
+		const workedStr = `⏱ ${formatDuration(workedMs)}`;
+		const workedText = theme.fg("dim", " • ") + theme.fg("dim", workedStr);
+		const workedRawWidth = visibleWidth(` • ${workedStr}`);
+
 		// Layout: compute path budget from remaining space
-		const rightBlockWidth = visibleWidth(ctxRaw) + sepW + model.rawWidth;
+		const rightBlockWidth = visibleWidth(ctxRaw) + sepW + model.rawWidth + workedRawWidth;
 		const pathBudget = width - pillW - sepW - rightBlockWidth - sepW;
 		const pathDisplay = renderPath(pathRaw, pathBudget, theme);
 
@@ -134,7 +146,7 @@ export default function (pi: ExtensionAPI) {
 		const segments: string[] = [pill];
 		if (pathDisplay) segments.push(pathDisplay);
 		segments.push(ctxColored);
-		segments.push(model.text);
+		segments.push(model.text + workedText);
 
 		return truncateToWidth(segments.join(sep), width);
 	}

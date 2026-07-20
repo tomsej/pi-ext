@@ -23,7 +23,8 @@
 	"license": "MIT",
 	"scripts": {
 		"sem:evaluate": "node extensions/pi-sem/bin/sem-eval.mjs",
-		"test": "npm run test:pi-sem && npm run test:leader-key && npm run test:handoff",
+		"test": "npm run test:pi-sem && npm run test:leader-key && npm run test:handoff && npm run test:worktime",
+		"test:worktime": "node --test extensions/worktime/worktime.test.mjs",
 		"test:handoff": "node --test extensions/handoff/handoff.test.mjs",
 		"test:pi-sem": "node --test extensions/pi-sem/core.test.mjs extensions/review/sem-guidance.test.mjs",
 		"test:leader-key": "node --test extensions/leader-key/workflow-discovery.test.mjs",
@@ -41,7 +42,8 @@
 			"./extensions/pi-telescope/index.ts",
 			"./extensions/pi-sem/index.ts",
 			"./extensions/plannotator-annotate-tool/index.ts",
-			"./extensions/handoff/handoff.ts"
+			"./extensions/handoff/handoff.ts",
+			"./extensions/worktime/worktime.ts"
 		],
 		"skills": [
 			"./skills/commit",
