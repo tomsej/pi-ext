@@ -10,7 +10,8 @@ jsou jen artefakty. Implementace poběží později přes `/run-chain`.
 
 ## 1. Kontrakt
 
-Sestav kontrakt z naší dosavadní diskuse; chybějící body si u mě doptej:
+Sestav kontrakt z naší dosavadní diskuse; chybějící body si u mě doptej.
+Piš česky, stručně a výstižně — každý bod pár vět nebo odrážky, žádná omáčka:
 
 - **Současné chování / reprodukce:** jak to funguje teď; u bugu přesný postup reprodukce
 - **Akceptační kritéria:** pozorovatelná chování — každé kritérium = jeden budoucí test
@@ -28,7 +29,7 @@ Sestav kontrakt z naší dosavadní diskuse; chybějící body si u mě doptej:
 
 ## 2. Artefakty
 
-Odvoď kebab-case název `<name>` a zapiš (kontrakt anglicky):
+Odvoď kebab-case název `<name>` a zapiš (kontrakt česky):
 
 - `.pi/chains/<name>/contract.md` — kontrakt výše
 - `.pi/chains/<name>/<name>.chain.json` — z template níže
