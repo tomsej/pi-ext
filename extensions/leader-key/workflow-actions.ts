@@ -69,6 +69,15 @@ export function buildWorkflowEntries(_pi: ExtensionAPI): TopLevelEntry {
 					},
 				},
 				{
+					key: "q",
+					label: "Quick",
+					description: "one-shot implement → review → PR, no contract (/wq)",
+					action: (ctx: ExtensionContext) => {
+						ctx.ui.setEditorText("/wq ");
+						ctx.ui.notify("Describe the goal, then Enter", "info");
+					},
+				},
+				{
 					key: "v",
 					label: "Validate",
 					description: "pick a workflow, annotate its contract + chain in plannotator",
