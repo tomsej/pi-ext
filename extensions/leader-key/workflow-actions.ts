@@ -78,6 +78,17 @@ export function buildWorkflowEntries(_pi: ExtensionAPI): TopLevelEntry {
 					},
 				},
 				{
+					key: "f",
+					label: "Finish PR",
+					description: "run pr-finisher on the current branch, no contract (draft PR → green CI)",
+					action: (ctx: ExtensionContext) => {
+						ctx.ui.setEditorText(
+							"/run pr-finisher No contract file exists. Create a draft PR and derive the business summary (what & why, for a non-technical reader) from the diff against the target branch. Iterate until CI is green and all review threads are resolved. Never merge.",
+						);
+						ctx.ui.notify("Enter to finish the PR (no acceptance gate)", "info");
+					},
+				},
+				{
 					key: "v",
 					label: "Validate",
 					description: "pick a workflow, annotate its contract + chain in plannotator",
