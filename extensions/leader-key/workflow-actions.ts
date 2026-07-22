@@ -9,7 +9,8 @@
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
-import { join } from "node:path";
+import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
+import { basename, join } from "node:path";
 import type { TopLevelEntry } from "./types.js";
 import { searchableSelect } from "./model-switcher.js";
 import { discoverWorkflows } from "./workflow-discovery.mjs";
@@ -108,6 +109,37 @@ export function buildWorkflowEntries(_pi: ExtensionAPI): TopLevelEntry {
 						if (!wf) return;
 						ctx.ui.setEditorText(`/run-chain ${wf.name} -- execute the workflow per its contract`);
 						ctx.ui.notify("Enter to run the workflow", "info");
+					},
+				},
+				{
+					key: "a",
+					label: "Archive",
+					description: "pick a finished workflow, move it out of the picker into .pi/chains/.archive/",
+					action: async (ctx: ExtensionContext) => {
+						const wf = await pickWorkflow(ctx, "Archive which workflow?");
+						if (!wf) return;
+						const archiveDir = join(ctx.cwd, ".pi", "chains", ".archive");
+						mkdirSync(archiveDir, { recursive: true });
+						let dest = join(archiveDir, basename(wf.dir));
+						if (existsSync(dest)) dest += `-${Date.now()}`;
+						renameSync(wf.dir, dest);
+						ctx.ui.notify(`Archived ${wf.name} → .pi/chains/.archive/`, "info");
+					},
+				},
+				{
+					key: "d",
+					label: "Delete",
+					description: "pick a workflow and permanently remove its folder (asks to confirm)",
+					action: async (ctx: ExtensionContext) => {
+						const wf = await pickWorkflow(ctx, "Delete which workflow?");
+						if (!wf) return;
+						const confirm = await searchableSelect<string>(ctx, `Delete ${wf.name}? This cannot be undone`, [
+							{ value: "no", label: "Cancel" },
+							{ value: "yes", label: "Delete permanently" },
+						]);
+						if (confirm !== "yes") return;
+						rmSync(wf.dir, { recursive: true, force: true });
+						ctx.ui.notify(`Deleted ${wf.name}`, "info");
 					},
 				},
 				{

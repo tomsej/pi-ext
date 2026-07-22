@@ -47,6 +47,24 @@ test("discovers workflow dirs with contract.md and *.chain.json", () => {
 	assert.ok(found[0].createdMs > 0);
 });
 
+test("ignores archived workflows nested under .archive/", () => {
+	const root = setup();
+	const live = join(root, "live");
+	mkdirSync(live);
+	writeFileSync(join(live, "contract.md"), "x");
+	writeFileSync(join(live, "live.chain.json"), JSON.stringify({ name: "live", chain: [] }));
+	const archived = join(root, ".archive", "done");
+	mkdirSync(archived, { recursive: true });
+	writeFileSync(join(archived, "contract.md"), "x");
+	writeFileSync(join(archived, "done.chain.json"), JSON.stringify({ name: "done", chain: [] }));
+
+	const found = discoverWorkflows(root);
+	assert.deepEqual(
+		found.map((w) => w.name),
+		["live"],
+	);
+});
+
 test("sorts workflows newest first by creation time", () => {
 	const root = setup();
 	for (const name of ["a", "b", "c"]) {
