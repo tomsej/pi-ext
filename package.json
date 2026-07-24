@@ -23,12 +23,13 @@
 	"license": "MIT",
 	"scripts": {
 		"sem:evaluate": "node extensions/pi-sem/bin/sem-eval.mjs",
-		"test": "npm run test:pi-sem && npm run test:leader-key && npm run test:handoff && npm run test:worktime && npm run test:sc-slash-status",
+		"test": "npm run test:pi-sem && npm run test:leader-key && npm run test:workflow-boundaries && npm run test:handoff && npm run test:worktime && npm run test:sc-slash-status",
 		"test:worktime": "node --test extensions/worktime/worktime.test.mjs",
 		"test:handoff": "node --test extensions/handoff/handoff.test.mjs",
 		"test:sc-slash-status": "node --test extensions/sc-slash-status/sc-slash-status.test.mjs",
 		"test:pi-sem": "node --test extensions/pi-sem/core.test.mjs extensions/review/sem-guidance.test.mjs",
 		"test:leader-key": "node --test extensions/leader-key/workflow-discovery.test.mjs",
+		"test:workflow-boundaries": "node --test agents/workflow-boundaries.test.mjs",
 		"typecheck": "tsc --noEmit -p tsconfig.json"
 	},
 	"pi": {

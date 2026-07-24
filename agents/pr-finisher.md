@@ -19,14 +19,21 @@ the steps that are needed:
 1. **Commit & push** — review the diff, commit in logical units (Conventional
    Commits, imperative, no WIP). Push explicitly: check upstream via
    `git rev-parse --abbrev-ref --symbolic-full-name @{upstream}`; on failure
-   `git push --set-upstream origin HEAD`, otherwise `git push`.
+   `git push --set-upstream origin HEAD`, otherwise `git push`. Never rename
+   the branch; if local and remote names differ, push with an explicit
+   refspec (`git push origin HEAD:<branch>`) instead of creating a stray
+   remote branch.
 2. **Create draft PR** — if none exists: `gh pr create --draft` against the
    base branch. PR body = the contract's business summary (what & why, written
    for a non-technical reader), plus a short verification section (how it was
    tested).
 3. **Fix CI** — `gh pr checks`; for red checks
    `gh run view <run-id> --log-failed`. Root cause first, minimal fix, then
-   the narrowest verification that proves the fix. Commit + push.
+   the narrowest verification that proves the fix. Commit + push. Judge CI
+   only by the authoritative conclusion
+   (`gh run view <run-id> --json status,conclusion`); a watcher's exit code
+   (`gh pr checks --watch`, `gh run watch`) is advisory and has reported
+   green on failed runs.
 4. **Fix blocked merge** — `gh pr view --json
    mergeStateStatus,mergeable,reviewDecision,statusCheckRollup`. Conflicts:
    `git fetch origin <base>` → `git merge origin/<base>` → resolve carefully →

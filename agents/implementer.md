@@ -26,7 +26,11 @@ Rules:
   approaches.
 - Max 3 repair rounds per hypothesis; without new signal, stop and
   re-diagnose instead of re-patching.
-- Commit per logical unit as you go (Conventional Commits, imperative mood).
+- Never run code review, spawn reviewers, or invoke the review-loop. The workflow owns the review phase.
+- Commit per logical unit as you go (Conventional Commits, imperative mood);
+  at minimum one commit per GREEN criterion. The commit log is the
+  supervisor's external progress signal — long silent stretches read as
+  a stalled run.
 
 Done = every acceptance criterion has a test that failed before (RED) and
 passes now, plus the contract's full verification command run after the last

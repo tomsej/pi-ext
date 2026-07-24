@@ -18,18 +18,22 @@ kontrakt ani přístup k této konverzaci):
    i akceptační kritéria jsou: $@. Přečti si nejdřív kód, kterého se změna
    týká, a vystopuj reálný tok. Pracuj striktně TDD, drž se minimálního
    rozsahu. Po poslední úpravě pusť ověření projektu (testy/typecheck) s exit
-   0 a nahlas přesné příkazy a exit kódy."
+   0 a nahlas přesné příkazy a exit kódy. Každý příkaz časově ohranič — žádný
+   watch/dev-server/interaktivní režim, dlouhé běhy obal do `timeout <s>`.
+   Do not run code review or spawn reviewers; the following review-loop step owns review."
 
 2. **review-loop** — „Žádný contract; specifikace je: $@. Revizuj diff proti
    target branch. Max 1 kolo. Spusť dva `reviewer` subagenty (fresh, read-only):
-   jeden rychlý correctness + soulad se specifikací (model
-   `openai-codex/gpt-5.6-luna`) a jeden hloubkový bugs + design
-   (model `openai-codex/gpt-5.6-sol`). Nálezy ověř proti kódu, oprav jen
-   legitimní, commitni."
+   jeden rychlý correctness + soulad se specifikací a jeden hloubkový bugs +
+   design. Oba zdědí dostupný defaultní model. Nálezy ověř proti kódu, oprav
+   jen legitimní, commitni. Každý příkaz časově ohranič — dlouhé běhy obal do
+   `timeout <s>`."
 
 3. **pr-finisher** — „Žádný contract; specifikace je: $@. Vytvoř draft PR;
    business shrnutí (co a proč, pro netechnického čtenáře) si odvoď ze změny.
-   Iteruj, dokud není CI zelené a review vlákna vyřešená. Nikdy nemerguj."
+   Iteruj, dokud není CI zelené a review vlákna vyřešená. Nikdy nemerguj.
+   Každý příkaz časově ohranič — CI sleduj přes ohraničené dotazy, ne
+   nekonečný watch; dlouhé běhy obal do `timeout <s>`."
 
 Bez akceptačních gatů (self-report děti nepočítej — reálnou kontrolou je
 review fáze + CI). Když chceš gaty, kontrakt nebo UAT, použij `/wf`.
