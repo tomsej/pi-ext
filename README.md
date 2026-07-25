@@ -104,9 +104,9 @@ npm run sem:evaluate -- --from origin/main --to HEAD
 
 Vendored copy of [sting8k/pi-vcc](https://github.com/sting8k/pi-vcc) (MIT): algorithmic, LLM-free conversation compaction plus `vcc_recall`. Local addition: Czech-aware goal/preference extraction (diacritics-insensitive, Czech acknowledgements like "ano prosim" are no longer mistaken for the session goal).
 
-### [Hypa Trim](extensions/hypa-trim/)
+### [Tool Trim](extensions/tool-trim/)
 
-Deactivates `hypa_read`/`hypa_grep`/`hypa_find`/`hypa_ls` (and their MCP aliases) so only `hypa_shell` stays active. The file tools duplicate Pi builtins and cost prompt tokens.
+Deactivates tools that cost more prompt tokens than they return: `hypa_read`/`hypa_grep`/`hypa_find`/`hypa_ls` (duplicate Pi builtins and pi-fff; `hypa_shell` stays) and `sem_diff`/`sem_eval`/`sem_log`/`sem_blame` (measured 1.23-1.44x more tokens than raw `git diff`; `sem_impact` and `sem_context` stay). MCP aliases are dropped as well.
 
 ### [Session Snap](extensions/session-snap/)
 

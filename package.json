@@ -38,14 +38,14 @@
 			"./extensions/review/review.ts",
 			"./extensions/leader-key/index.ts",
 			"./extensions/permissions/permissions.ts",
-			"./extensions/session-query/session-query.ts",
+			"./extensions/session-query/index.ts",
 			"./extensions/ask-user-question/index.ts",
 			"./extensions/tool-pills/index.ts",
 			"./extensions/pi-sem/index.ts",
 			"./extensions/handoff/handoff.ts",
 			"./extensions/worktime/worktime.ts",
 			"./extensions/pi-vcc/index.ts",
-			"./extensions/hypa-trim/hypa-trim.ts"
+			"./extensions/tool-trim/tool-trim.ts"
 		],
 		"skills": [
 			"./skills/commit",
