@@ -89,12 +89,14 @@ test("wf puts the business summary immediately after the current state", () => {
 });
 
 test("the roster documented in wf is the roster wf-gate resolves", () => {
-	const documented = [...wf.matchAll(/^\| `([a-z0-9-]+)` \| (pi|claude|codex) \| (\S+) \|/gm)].map((m) => ({
+	// Matches any `name` harness/model mention, so the docs can be a table, a
+	// list or one dense line — the test pins the facts, not the layout.
+	const documented = [...wf.matchAll(/`([a-z0-9-]+)` (pi|claude|codex)\/([^\s·|]+)/g)].map((m) => ({
 		name: m[1],
 		harness: m[2],
 		model: m[3],
 	}));
-	assert.ok(documented.length >= 4, "no roster table found in the wf skill");
+	assert.ok(documented.length >= 4, "no roster documented in the wf skill");
 
 	const dir = mkdtempSync(join(tmpdir(), "wf-roster-"));
 	mkdirSync(join(dir, "specs"));
@@ -128,15 +130,25 @@ test("wf-run launches pi conductors and never a Claude session", () => {
 });
 
 test("wf-run asks before launching and never implements", () => {
-	assert.match(wfRun, /nespouštěj nic|ZEPTEJ/);
-	assert.match(wfRun, /nikdy nic neimplementuješ/);
+	assert.match(wfRun, /ZEPTEJ|zeptej/); // the user picks what launches
+	assert.ok(forbids(wfRun, "nespouštěj nic") || /neimplementuješ/.test(wfRun), "wf-run does not rule out implementing");
 });
 
 // ── /wf-impl — conductor boundaries ─────────────────────────────────────────
 
+// Wording-independent: a negation must sit next to the forbidden action (line
+// breaks ignored), so shortening the prose cannot quietly drop the prohibition.
+function forbids(body, action) {
+	const text = body.replace(/\s+/g, " ");
+	for (let i = text.indexOf(action); i !== -1; i = text.indexOf(action, i + 1)) {
+		if (/[Nn]ikdy|nesmíš|nepoužívej|neotvírej/.test(text.slice(Math.max(0, i - 80), i + 80))) return true;
+	}
+	return false;
+}
+
 test("wf-impl never creates worktrees and never merges", () => {
-	assert.match(wfImpl, /Nikdy nespouštěj `sc worktree create`/);
-	assert.match(wfImpl, /Nikdy nemerguj/);
+	assert.ok(forbids(wfImpl, "sc worktree create"), "wf-impl does not forbid creating worktrees");
+	assert.ok(forbids(wfImpl, "nemerguj") || forbids(wfImpl, "gh pr merge"), "wf-impl does not forbid merging");
 });
 
 test("wf-impl delegates review instead of reviewing itself", () => {
@@ -145,7 +157,7 @@ test("wf-impl delegates review instead of reviewing itself", () => {
 });
 
 test("wf-impl gates phase transitions on wf-gate, not on agent claims", () => {
-	assert.match(wfImpl, /exit kódů wf-gate/);
+	assert.match(wfImpl, /exit kód\w* wf-gate/i);
 	assert.match(wfImpl, /GATE verify SPEC full/);
 	assert.match(wfImpl, /GATE begin SPEC/);
 });
@@ -168,7 +180,7 @@ test("wf-review spawns the contract's panel in parallel with fresh contexts", ()
 	assert.match(wfReview, /GATE agents <spec> --json/);
 	assert.match(wfReview, /subagent_spawn/);
 	assert.match(wfReview, /PARALELNĚ/);
-	assert.match(wfReview, /nikdy je nesesypej na jeden model/);
+	assert.match(wfReview.replace(/\s+/g, " "), /nikdy je nesesypej na jeden model/); // the cross-model guarantee
 });
 
 test("wf-review attests only after a passing quick gate, and never to bypass", () => {
@@ -192,6 +204,7 @@ test("delegating skills forbid the endgame to every delegated agent", () => {
 });
 
 test("wf-review treats findings as claims and owns the fixes", () => {
-	assert.match(wfReview, /nálezy jsou tvrzení|nálezy jsou TVRZENÍ/);
-	assert.match(wfReview, /revieweři jen\nreportují|revieweři jen reportují/);
+	const flat = wfReview.replace(/\s+/g, " ");
+	assert.match(flat, /nálezy jsou tvrzení|nálezy jsou TVRZENÍ/i);
+	assert.match(flat, /revieweři jen reportují/);
 });

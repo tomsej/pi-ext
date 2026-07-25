@@ -5,48 +5,43 @@ description: Řídící pult pro workflow kontrakty — zjisti reálný stav, na
 
 # /wf-run — naplánuj a spusť kontrakty
 
-Jsi v HLAVNÍ session. Tady nikdy nic neimplementuješ; plánuješ, spouštíš
-worktree a předáváš práci. Před každým `sc worktree create` si přečti
-`sc instructions worktree`.
+Jsi v HLAVNÍ session: plánuješ, spouštíš worktree, předáváš. Nikdy tu nic
+neimplementuješ. Před `sc worktree create` si přečti `sc instructions worktree`.
 
 GATE = `node ~/Workspace/pi-ext/wf/wf-gate.mjs`
 
-## 1. Zjisti reálný stav
+## 1. Stav
 
-Spusť `GATE status --json` (z rootu repa). Pro každý spec:
+`GATE status --json` (z rootu repa) odvodí stav živě z gitu a gh:
 
-- `done` → nabídni archivaci: `mv <spec file> <specs dir>/_archive/` podle cest
-  `file` ze status JSONu — specy jsou mimo repo, žádný git (až po schválení).
-- `pr-open` s nevyřešenými thready → kandidát na akci „vyřeš komentáře".
-- `running` → kandidát na resume, když session vypadá zaseknutě (starý poslední
-  commit); nikdy nespouštěj duplicitní worktree pro běžící spec.
+- `done` → nabídni archivaci `mv <file> <specs dir>/_archive/` (cesty z JSONu,
+  specy jsou mimo repo, žádný git) — až po schválení
+- `pr-open` s nevyřešenými thready → kandidát na „vyřeš komentáře"
+- `running` → kandidát na resume, když poslední commit zestárl; duplicitní
+  worktree pro běžící spec nikdy
 
-## 2. Naplánuj a doporuč
+## 2. Plán
 
-- **launch** — stav `ready` (všechny `depends_on` mergnuté)
-- **blocked** — deps nehotové; ukaž, na co čekají
-- **resume** — `running` specy; session najdi přes `sc agents list --output json`
-  (podle worktree/branch) a navrhni follow-up místo nového worktree
-- **attention** — `pr-open` s nevyřešenými review thready
+- **launch** — `ready` (deps mergnuté)
+- **blocked** — ukaž, na co čeká
+- **resume** — session najdi přes `sc agents list --output json` (podle
+  worktree/branch) a navrhni follow-up místo nového worktree
+- **attention** — `pr-open` s nevyřešenými thready
 
-Kolize scope: přečti sekci `Scope` každého spustitelného kontraktu. Dva specy,
-které sahají na stejné soubory/moduly, nesmí běžet paralelně — doporuč
-sekvenci a řekni proč.
+Kolize: přečti `Scope` každého spustitelného kontraktu. Dva specy na stejné
+soubory nesmí běžet paralelně — doporuč sekvenci a řekni proč.
 
-Plán ukaž jako tabulku s jasnou řádkou doporučení, pak se ZEPTEJ, co spustit:
-`all` / konkrétní jména / `recommended`. Bez téhle odpovědi nespouštěj nic.
+Ukaž tabulku s jasným doporučením a ZEPTEJ se, co spustit (`all` / jména /
+`recommended`). Bez odpovědi nespouštěj nic.
 
-## 3. Spusť
+## 3. Spuštění
 
 Pro každý vybraný spec:
 
-1. Zjisti ABSOLUTNÍ cestu ke kontraktu (specy jsou v
-   `~/Workspace/specs/<project>/` — vezmi `file` ze `GATE status --json`, nikdy
-   nehádej cestu relativní k repu) a ověř, že soubor existuje.
-2. Zjisti dirigenta: `GATE agents <spec> --json` → `conductor`
-   (`{harness: pi, model, effort}`) nebo `null` (= pi s vlastním default modelem;
-   Session Default projektu se přebíjí vždy, viz kroku 4).
-3. Napiš task soubor (tmp) přesně tohohle tvaru:
+1. Absolutní cesta ze `GATE status --json` (`file`) — ověř, že soubor existuje.
+2. `GATE agents <spec> --json` → `conductor` (nebo `null` = pi s vlastním
+   default modelem).
+3. Task soubor (tmp) přesně tohohle tvaru:
 
    > Načti skill `wf-impl` a proveď kontrakt na `<absolutní cesta ke spec>`.
    > Kontrakt žije mimo repozitář — přečti ho z té přesné cesty. Pracuj jen
@@ -54,30 +49,25 @@ Pro každý vybraný spec:
    > rozhodnutí, které z kontraktu neodvodíš, napiš otázku do PR / review
    > threadu a tu fázi pozastav.
 
-4. `sc worktree create --from-file <task-file> --provider pi --json`, a když
-   kontrakt určuje dirigenta, přidej `--model <conductor.model>` a
-   `--reasoning <conductor.effort>`.
-   `--provider pi` je POVINNÉ, nikdy ho nevynechávej: Session Default projektu
-   může být jiný agent, ale dirigent musí být pi — wf-impl, wf-review, wf-gate
-   extension a jeho PR guard existují tam. Ostatní harnessy (claude, codex) se
-   zapojují delegací zvnitřku dirigenta podle rosteru kontraktu, ne jako
+4. `sc worktree create --from-file <task-file> --provider pi --json`, plus
+   `--model <conductor.model>` a `--reasoning <conductor.effort>`, když je
+   kontrakt určuje. `--provider pi` je POVINNÉ (přebíjí Session Default
+   projektu): dirigent musí být pi, protože tam žije wf-gate extension a její
+   guard. Claude a codex se zapojují delegací zvnitřku dirigenta, ne jako
    session worktree.
-5. Reportuj uživateli: cesta k worktree, branch, spec — u každého spuštění.
+5. Reportuj: worktree, branch, spec.
 
-Pro **resume**: `sc agent send --to id:<stable_target_id> --prompt "Resume
-wf-impl pro <absolutní cesta ke spec>: hotové fáze odvoď z reality (git log,
-wf-gate verify, existence PR) a pokračuj od první nedokončené." --queue
---output json`. Tip pro uživatele: implementaci na pi harnessu si může
-interaktivně prohlédnout ve worktree přes `pi --session $(cat
-.wf/impl-session)` (kdykoliv, když headless běh právě neběží).
+**Resume:** `sc agent send --to id:<stable_target_id> --prompt "Resume wf-impl
+pro <spec>: hotové fáze odvoď z reality (git log, wf-gate verify, existence PR)
+a pokračuj od první nedokončené." --queue --output json`. Implementaci na pi
+harnessu si uživatel prohlédne přes `pi --session $(cat .wf/impl-session)` ve
+worktree, kdykoli headless běh neběží.
 
-Pro **vyřešení komentářů**: stejné `sc agent send`, prompt: "PR #<n> má <k>
-nevyřešených review threadů. Postupuj podle PR fáze wf-impl: každý nález ověř
-proti kódu, legitimní oprav, odpověz na každý thread, drž CI zelené. Nikdy
-nemerguj."
+**Komentáře:** stejné `sc agent send`, prompt: „PR #<n> má <k> nevyřešených
+review threadů. Postupuj podle PR fáze wf-impl: nález ověř proti kódu, legitimní
+oprav, odpověz na každý thread, drž CI zelené. Nikdy nemerguj."
 
-## 4. Předej
+## 4. Předání
 
-Po spuštění česky shrň, co běží kde, a skonči — dál to vlastní worktree
-sessions. Vlny závislostí se řeší dalším spuštěním `wf-run` po mergích, ne
-čekáním tady.
+Česky shrň, co běží kde, a skonči — dál to vlastní worktree sessions. Vlny
+závislostí řeší další spuštění `wf-run` po mergích, ne čekání tady.

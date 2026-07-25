@@ -1,54 +1,46 @@
 ---
 name: wf-uat
-description: UAT phase for a workflow contract — derives scenarios from the contract's UAT section and acceptance criteria, executes them against a disposable instance, and delivers Czech manual steps for the user. Called automatically by wf-impl when the contract sets uat auto, or manually with a spec path.
+description: UAT fáze workflow kontraktu — odvodí scénáře z UAT sekce a akceptačních kritérií, spustí je proti disposable instanci a dodá české ruční kroky pro uživatele. Volá ji wf-impl při uat auto, nebo uživatel ručně s cestou ke spec.
 ---
 
-# wf-uat — user acceptance testing
+# /wf-uat — user acceptance testing
 
-Argument: absolute path to a contract (`~/Workspace/specs/<project>/<name>.md`
-— specs live outside the repo). Never modify code, tests, or repo
-configuration. If you find a defect, report it; fixing belongs to the
-implementation/review phases.
+Argument: absolutní cesta ke kontraktu (mimo repo). Nikdy neměň kód, testy ani
+konfiguraci repa. Najdeš-li vadu, nahlas ji; opravy patří do implementace.
 
-UAT is NOT a re-run of the gates. The gate already proved the acceptance
-criteria through tests; re-executing those tests (or poking internal APIs)
-produces false confidence, not new information. UAT's single definition:
-**the user's perspective, through the user's interface, on a running
-instance** — the CLI as the user would type it, the UI as they would click
-it, the public API as they would call it.
+UAT NENÍ druhý běh gatů. Gate už kritéria dokázal testy; jejich opakování (nebo
+šťouchání do interních API) vyrábí falešnou jistotu, ne novou informaci. UAT má
+jedinou definici: **pohled uživatele, jeho rozhraním, na běžící instanci** — CLI
+jak by ho napsal, UI jak by klikal, API jak by volal.
 
-This skill is deliberately a standalone unit: the pipeline calls it as its
-last phase and the user iterates on it independently. Keep its contract
-stable — input: spec path; output: Czech UAT report.
+Skill je záměrně samostatná jednotka: pipeline ji volá jako poslední fázi a
+uživatel na ní iteruje sám. Vstup = cesta ke spec, výstup = český report.
 
-## Environment
+## Prostředí
 
-Run scenarios against a DISPOSABLE local instance, launched the project's
-usual way (docker compose, dev server, seeded local DB) — never against a
-shared or production environment. Pick a non-default free port — parallel
-contracts may be running their own UAT on the same machine. State-changing scenarios (create, update,
-delete) are fine inside that sandbox; "never modify" applies to the repo, not
-to the sandbox's data. Tear the instance down when done; timebox everything,
-no watch/dev-server left running. If the project offers no way to run a
-disposable instance, say so — those scenarios go to the manual list.
+Scénáře pusť proti DISPOSABLE lokální instanci, spuštěné obvyklým způsobem
+projektu (docker compose, dev server, seedovaná lokální DB) — nikdy proti
+sdílenému nebo produkčnímu prostředí. Vyber volný ne-default port, paralelně
+můžou běžet UAT jiných kontraktů. Scénáře měnící stav jsou uvnitř sandboxu
+v pořádku — „neměň" platí na repo, ne na data sandboxu. Instanci nakonec shoď,
+všechno timeboxuj, nenech běžet watch/dev server. Neumí-li projekt disposable
+instanci, napiš to — ty scénáře jdou do ručního seznamu.
 
-## Steps
+## Postup
 
-1. Read the contract: the **UAT** section and every **Akceptační kritérium**.
-2. Derive UAT scenarios: every acceptance criterion must map to at least one
-   scenario, plus the explicit UAT items. User's perspective only (what they
-   see, type, and click) — skip execution where the scenario would merely
-   repeat what the gate proved, and note it as covered-by-gate instead.
-3. Execute what you can yourself against the disposable instance. For web
-   UIs use the `agent-browser` CLI when installed (`agent-browser --help`);
-   without it, UI scenarios go to the manual list — never fake a pass.
-4. Write the report — CELÝ VÝSTUP ČESKY (the PR body is English, but the UAT
-   report is for the user and stays Czech — deliberate):
+1. Přečti kontrakt: sekci **UAT** a všechna **akceptační kritéria**.
+2. Odvoď scénáře: každé kritérium musí mít aspoň jeden, plus explicitní UAT
+   položky. Jen uživatelský pohled (co vidí, píše, kam kliká). Kde by scénář jen
+   zopakoval gate, přeskoč ho a označ jako pokrytý gatem.
+3. Co umíš, proveď sám proti disposable instanci. Na webové UI použij
+   `agent-browser` CLI, je-li nainstalované; bez něj jdou UI scénáře do ručního
+   seznamu — nikdy nepředstírej průchod.
+4. Report CELÝ ČESKY (PR je anglicky, tenhle report je pro uživatele — záměrně):
    - co bylo ověřeno automaticky (scénář → výsledek, přesné příkazy/kroky),
    - co pokrývá gate a UAT to neopakuje (kritérium → test),
-   - **Ruční kroky pro uživatele**: číslovaný postup — kde kliknout, co
-     spustit, co přesně očekávat (jeden krok = jedno pozorovatelné chování),
+   - **Ruční kroky pro uživatele**: číslovaný postup — kde kliknout, co spustit,
+     co přesně čekat (jeden krok = jedno pozorovatelné chování),
    - zbytková rizika / co UAT nepokrylo a proč.
-5. Deliver: print the report (it belongs in the conductor's final report) —
-   never post it as a PR comment. Every criterion must appear —
-   an unmapped criterion is a finding, not something to skip silently.
+5. Report vytiskni (patří do finálního reportu dirigenta), nikdy ho neposílej
+   jako komentář na PR. Každé kritérium se v něm musí objevit — nenamapované
+   kritérium je nález, ne něco k tichému přeskočení.

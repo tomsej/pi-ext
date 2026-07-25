@@ -24,6 +24,7 @@
 	"license": "MIT",
 	"scripts": {
 		"sem:evaluate": "node extensions/pi-sem/bin/sem-eval.mjs",
+		"eval:wf": "node wf/evals/run.mjs",
 		"test": "npm run test:footer && npm run test:pi-sem && npm run test:leader-key && npm run test:workflow-boundaries && npm run test:handoff && npm run test:worktime && npm run test:vcc && npm run test:wf",
 		"test:footer": "bun test extensions/custom-footer/status.test.ts",
 		"test:worktime": "node --test extensions/worktime/worktime.test.mjs",

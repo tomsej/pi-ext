@@ -152,6 +152,8 @@ wf-gate status [--dir d] [--json]     derive spec states from git + gh
 wf-gate begin|attest review <spec.md> arm the guard / record the review phase
 ```
 
+Skills are prose, so they get behavioural evals rather than assertions about their wording: `npm run eval:wf` drops a headless agent into a throwaway repo with one skill and checks what it actually produced — a contract that passes `wf-gate check`, written outside the repo, with no code implemented and no invented test runner. It costs real tokens and ~10 minutes, so it runs on demand, not in `npm test`. Its purpose is to make shortening the skills measurable: cut, re-run, and the pass rate says whether words or guarantees were removed.
+
 A contract names agents from a roster instead of repeating models: `impl: sol`, `review: [{security: codex}]`. Builtin names — `opus`, `sol`, `terra`, `glm` (harness pi), `cc` (Claude Code), `codex` (Codex CLI); `agents:` in the frontmatter overrides or extends them. `wf-review` spawns each round's panel in parallel via `subagent_spawn`, and the lint rejects a reviewer sharing the implementer's harness+model.
 
 ## Skills
