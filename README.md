@@ -100,9 +100,9 @@ npm run sem:evaluate -- --staged
 npm run sem:evaluate -- --from origin/main --to HEAD
 ```
 
-### [Pi-Telescope](extensions/pi-telescope/)
+### [Hypa Trim](extensions/hypa-trim/)
 
-Native TUI fuzzy finder, inspired by telescope.nvim and [Television](https://github.com/alexpasmantier/television). Fuzzy search with pattern modifiers (`'exact`, `^prefix`, `suffix$`, `!negate`), multi-select, provider switching, preview toggle, frecency-aware sorting, and provider-specific actions. Bound to `Ctrl+Space` by default.
+Deactivates `hypa_read`/`hypa_grep`/`hypa_find`/`hypa_ls` (and their MCP aliases) so only `hypa_shell` stays active. The file tools duplicate Pi builtins and cost prompt tokens.
 
 ### [Session Snap](extensions/session-snap/)
 
@@ -137,7 +137,6 @@ Registers an `ask_user_question` tool the model uses to ask 1–4 structured cla
 | Skill | Description |
 |-------|-------------|
 | [commit](skills/commit/) | Conventional Commits-style `git commit` — infers type, scope, and summary from the diff |
-| [github](skills/github/) | Recipes for the `gh` CLI — PR checks, CI runs, issue queries, JSON output |
 | [sem](skills/sem/) | Entity-aware change analysis workflow — prefer `sem_context` and `sem_impact`, use `sem_diff` selectively for summaries and reviews |
 | [session-query](skills/session-query/) | Guide for querying past pi sessions via the `session-query` tool |
 | [visit-webpage](skills/visit-webpage/) | Fetch and extract content from a URL as markdown (via Jina Reader), or download images |

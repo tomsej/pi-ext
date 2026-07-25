@@ -25,7 +25,7 @@ import { matchesKey, parseKey, Key } from "@mariozechner/pi-tui";
 import { searchableSelect } from "./model-switcher.js";
 import { runFavouriteModels } from "./favourite-models.js";
 import { OverlayFrame } from "../shared/overlay.js";
-import { copyToClipboard } from "../pi-telescope/clipboard.js";
+import { copyToClipboard } from "../shared/clipboard.js";
 import type { ActionItem, ActionGroup, TopLevelEntry } from "./types.js";
 import { buildSessionEntries } from "./session-actions.js";
 import { buildLabelEntries } from "./label-actions.js";
