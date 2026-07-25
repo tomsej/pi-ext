@@ -136,11 +136,36 @@ Native integration with [Superconductor](https://superconductor.dev) via the `sc
 
 Registers an `ask_user_question` tool the model uses to ask 1–4 structured clarifying questions (with 2–4 options each) instead of asking in plain text. Interactive UI with optional multi-select and short header labels for a tab bar.
 
+### [wf-gate](extensions/wf-gate/)
+
+Endgame guard for the `wf` contract workflow. In a worktree conducted by the `wf-impl` skill, `gh pr create` is blocked until `.wf/receipts.jsonl` proves a passing full gate, a passing verify at the current clean HEAD, and a review attest at that HEAD; `gh pr merge` is always blocked. The decision lives in [`wf/wf-hook.mjs`](wf/wf-hook.mjs), shared with the Claude Code `PreToolUse` hook so delegated Claude subagents obey the same rules. Repos without `.wf/active` are untouched.
+
+## Workflow (`wf`)
+
+Contract-driven pipeline: discuss → `/wf` writes a contract to `~/Workspace/specs/<project>/<name>.md` (outside any repo) → `wf-run` launches one managed worktree per contract → the `wf-impl` conductor delegates implementation, review, PR, UAT and explanation. Phase transitions are decided by exit codes from [`wf/wf-gate.mjs`](wf/wf-gate.mjs), never by an agent's claim.
+
+```
+wf-gate check  <spec.md>              lint the contract's frontmatter
+wf-gate agents <spec.md> [--json]     resolve the agent roster (impl/conductor/review)
+wf-gate verify <spec.md> quick|full   run the verification gates, write receipts
+wf-gate status [--dir d] [--json]     derive spec states from git + gh
+wf-gate begin|attest review <spec.md> arm the guard / record the review phase
+```
+
+A contract names agents from a roster instead of repeating models: `impl: sol`, `review: [{security: codex}]`. Builtin names — `opus`, `sol`, `terra`, `glm` (harness pi), `cc` (Claude Code), `codex` (Codex CLI); `agents:` in the frontmatter overrides or extends them. `wf-review` spawns each round's panel in parallel via `subagent_spawn`, and the lint rejects a reviewer sharing the implementer's harness+model.
+
 ## Skills
 
 | Skill | Description |
 |-------|-------------|
 | [commit](skills/commit/) | Conventional Commits-style `git commit` — infers type, scope, and summary from the diff |
+| [wf](skills/wf/) | Turn the discussion into a workflow contract (Czech body + machine-readable frontmatter), linted by `wf-gate check` |
+| [wf-run](skills/wf-run/) | Reconcile contract state, plan the DAG, launch one pi conductor worktree per selected contract |
+| [wf-impl](skills/wf-impl/) | Conductor inside the worktree — implement, gate, review, draft PR, UAT, explain |
+| [wf-review](skills/wf-review/) | Cross-model review rounds via `subagent_spawn`, verified findings, quick gate, attest |
+| [wf-uat](skills/wf-uat/) | UAT against a disposable instance, Czech manual steps for the user |
+| [wf-explain](skills/wf-explain/) | Rich Czech explanation of a change as a standalone interactive HTML file |
+| [wf-status](skills/wf-status/) | Truthful state of all contracts (derived from git + gh) plus next actions |
 | [sem](skills/sem/) | Entity-aware change analysis workflow — prefer `sem_context` and `sem_impact`, use `sem_diff` selectively for summaries and reviews |
 | [session-query](skills/session-query/) | Guide for querying past pi sessions via the `session-query` tool |
 | [visit-webpage](skills/visit-webpage/) | Fetch and extract content from a URL as markdown (via Jina Reader), or download images |
