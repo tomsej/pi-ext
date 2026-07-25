@@ -53,6 +53,23 @@ test("blocks gh pr create without receipts and hands the model a reason", async 
 	expect(result?.reason).toMatch(/verify/i);
 });
 
+test("blocks a guarded command routed through another tool, e.g. bg_start", async () => {
+	const handler = loadExtension();
+	const cwd = wfRepo();
+	for (const toolName of ["bg_start", "hypa_shell"]) {
+		const result = await handler({ toolName, input: { command: "gh pr create --draft" } }, { cwd });
+		expect(result?.block).toBe(true);
+	}
+});
+
+test("allows gh pr create once the receipts prove the gates", async () => {
+	const handler = loadExtension();
+	const cwd = wfRepo();
+	execFileSync("node", [GATE, "verify", "specs/alpha.md", "full"], { cwd });
+	execFileSync("node", [GATE, "attest", "review", "specs/alpha.md"], { cwd });
+	expect(await handler({ toolName: "bash", input: { command: "gh pr create --draft" } }, { cwd })).toBeUndefined();
+});
+
 test("blocks gh pr merge in a conducted worktree", async () => {
 	const handler = loadExtension();
 	const result = await handler({ toolName: "bash", input: { command: "gh pr merge 7 --squash" } }, { cwd: wfRepo() });
@@ -66,7 +83,7 @@ test("lets unrelated commands and non-bash tools through", async () => {
 	expect(await handler({ toolName: "bash", input: { command: "gh pr view 7" } }, { cwd })).toBeUndefined();
 	expect(await handler({ toolName: "bash", input: { command: "npm test" } }, { cwd })).toBeUndefined();
 	expect(await handler({ toolName: "bash", input: {} }, { cwd })).toBeUndefined();
-	expect(await handler({ toolName: "edit", input: { command: "gh pr merge" } }, { cwd })).toBeUndefined();
+	expect(await handler({ toolName: "edit", input: { path: "a.txt", content: "gh pr merge" } }, { cwd })).toBeUndefined();
 });
 
 test("leaves repos that are not wf-conducted alone", async () => {

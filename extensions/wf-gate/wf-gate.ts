@@ -24,9 +24,10 @@ export default function (pi: ExtensionAPI) {
 	let hook: Promise<Hook> | undefined;
 
 	pi.on("tool_call", async (event, ctx) => {
-		if (event.toolName !== "bash") return;
-		const command = (event.input as { command?: string }).command;
-		if (!command || !/\bgh\s+pr\b/.test(command)) return;
+		// Any tool that runs a shell command, not just `bash`: bg_start and other
+		// command runners would otherwise be an open side door around the guard.
+		const command = (event.input as { command?: unknown }).command;
+		if (typeof command !== "string" || !command.includes("gh")) return;
 
 		// Imported on first `gh pr` call only: unrelated bash must not pay for it.
 		hook ??= import(HOOK_URL) as Promise<Hook>;

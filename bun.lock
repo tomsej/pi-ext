@@ -12,10 +12,10 @@
         "@mariozechner/pi-coding-agent": "npm:@earendil-works/pi-coding-agent@^0.80.3",
         "@mariozechner/pi-tui": "npm:@earendil-works/pi-tui@^0.80.3",
         "@tintinweb/pi-tasks": "^0.4.2",
+        "js-yaml": "^5.2.2",
         "typebox": "^1.1.32",
       },
       "devDependencies": {
-        "js-yaml": "^5.2.2",
         "typescript": "^7.0.2",
       },
       "optionalDependencies": {

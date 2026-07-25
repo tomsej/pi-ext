@@ -256,6 +256,15 @@ test('check: missing review plan fails', () => {
   assert.match(r.stdout + r.stderr, /review/i)
 })
 
+test('check: a review focus without an agent fails instead of emptying the round', () => {
+  const dir = tmp()
+  // `- smoke:` in YAML — one forgotten value must not silently drop the panel.
+  const file = writeSpec(dir, baseFrontmatter({ review: [{ smoke: null }] }))
+  const r = runGate(['check', file], { cwd: dir })
+  assert.equal(r.status, 1)
+  assert.match(r.stdout + r.stderr, /smoke/)
+})
+
 test('check: depends_on referencing missing spec fails', () => {
   const dir = tmp()
   const fm = baseFrontmatter({ depends_on: ['does-not-exist'] })
@@ -271,6 +280,16 @@ test('check: judge entry naming a roster agent passes', () => {
   fm.verify.full.push({ id: 'docs', kind: 'judge', agent: 'cc', rubric: 'docs are readable', min_score: 4 })
   const file = writeSpec(dir, fm)
   assert.equal(runGate(['check', file], { cwd: dir }).status, 0)
+})
+
+test('check: judge agent missing a model fails like any other roster entry', () => {
+  const dir = tmp()
+  const fm = baseFrontmatter({ agents: { pj: { harness: 'pi' } } })
+  fm.verify.full.push({ id: 'docs', kind: 'judge', agent: 'pj', rubric: 'r', min_score: 4 })
+  const file = writeSpec(dir, fm)
+  const r = runGate(['check', file], { cwd: dir })
+  assert.equal(r.status, 1)
+  assert.match(r.stdout + r.stderr, /explicit model/i)
 })
 
 test('check: judge entry with an unknown agent fails', () => {
@@ -427,6 +446,51 @@ test('verify: judge entry scores via judge command', () => {
     env: { WF_GATE_JUDGE_CMD: `cat >/dev/null; echo '{"score": 2, "reasoning": "confusing"}'` },
   })
   assert.equal(verifyJson(fail).result, 'fail')
+})
+
+test('verify: judge command carries the roster agent harness, model and effort', () => {
+  const dir = tmp()
+  // PATH shim instead of a live LLM: it records how wf-gate invoked the judge.
+  const bin = join(dir, 'bin')
+  mkdirSync(bin)
+  const log = join(dir, 'judge-cmd.txt')
+  writeFileSync(join(bin, 'pi'), `#!/bin/sh\ncat > /dev/null\necho "$@" > ${log}\necho '{"score": 5, "reasoning": "ok"}'\n`, { mode: 0o755 })
+  const fm = baseFrontmatter({ agents: { j: { harness: 'pi', model: 'zai/glm-5.2', effort: 'low' } } })
+  fm.verify.full = [{ id: 'docs', kind: 'judge', agent: 'j', rubric: 'readable', min_score: 4 }]
+  const file = writeSpec(dir, fm)
+  const r = runGate(['verify', file, 'full', '--json'], { cwd: dir, env: { PATH: `${bin}:${process.env.PATH}` } })
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  const args = readFileSync(log, 'utf8')
+  assert.match(args, /--model zai\/glm-5\.2:low/)
+  assert.match(args, /-p\b/)
+})
+
+test('verify: judge entry naming an unknown agent fails the entry, never crashes', () => {
+  const dir = tmp()
+  const fm = baseFrontmatter()
+  fm.verify.full = [{ id: 'docs', kind: 'judge', agent: 'ghost', rubric: 'r', min_score: 4 }]
+  const file = writeSpec(dir, fm)
+  const r = runGate(['verify', file, 'full', '--json'], { cwd: dir })
+  assert.equal(r.status, 1)
+  assert.doesNotMatch(r.stderr, /TypeError/)
+  const rec = JSON.parse(r.stdout).entries[0]
+  assert.equal(rec.status, 'failed')
+  assert.match(rec.note, /ghost/)
+})
+
+test('verify: a hanging judge times out instead of holding the full-gate lock forever', () => {
+  const dir = tmp()
+  const fm = baseFrontmatter()
+  fm.verify.full = [{ id: 'docs', kind: 'judge', agent: 'cc', rubric: 'r', min_score: 4 }]
+  const file = writeSpec(dir, fm)
+  const r = runGate(['verify', file, 'full', '--json'], {
+    cwd: dir,
+    env: { WF_GATE_JUDGE_CMD: 'sleep 30', WF_GATE_JUDGE_TIMEOUT_MS: '1500' },
+  })
+  assert.equal(r.status, 1)
+  const rec = JSON.parse(r.stdout).entries[0]
+  assert.equal(rec.status, 'failed')
+  assert.match(rec.note, /timed out/i)
 })
 
 test('verify: implicit diff-check runs in a git repo', () => {
@@ -664,6 +728,29 @@ test('hook: gh pr merge is always blocked in a wf worktree', () => {
 test('hook: unrelated gh pr command passes through', () => {
   const dir = wfRepo()
   assert.equal(runHook('gh pr view 7 --json state', dir).status, 0)
+  assert.equal(runHook("gh pr list --search 'create merge'", dir).status, 0)
+})
+
+test('hook: global gh flags before the subcommand do not slip past the guard', () => {
+  const dir = wfRepo()
+  for (const command of [
+    'gh -R owner/repo pr create --draft',
+    'gh --repo=owner/repo pr create',
+    'gh -R owner/repo pr merge 7 --squash',
+    'cd /tmp && gh pr create --draft',
+  ]) {
+    assert.equal(runHook(command, dir).status, 2, `not blocked: ${command}`)
+  }
+})
+
+test('hook: dirty working tree blocks pr create even with complete receipts', () => {
+  const dir = wfRepo()
+  runGate(['verify', 'specs/alpha.md', 'full'], { cwd: dir })
+  runGate(['attest', 'review', 'specs/alpha.md'], { cwd: dir })
+  writeFileSync(join(dir, 'uncommitted.txt'), 'work in progress\n')
+  const r = runHook('gh pr create --draft', dir)
+  assert.equal(r.status, 2)
+  assert.match(r.stderr, /uncommitted/i)
 })
 
 test('status: merged PR → done, and unblocks dependents', () => {

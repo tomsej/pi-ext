@@ -18,9 +18,15 @@ import { readFileSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 
+// `gh` accepts global flags anywhere, so `gh -R owner/repo pr create` is the
+// same command as `gh pr create` and must not slip past on a token match.
+const FLAG = String.raw`(?:\s+-{1,2}[A-Za-z0-9-]+(?:[= ]\S+)?)`
+const GUARDED = new RegExp(String.raw`\bgh${FLAG}*\s+pr${FLAG}*\s+(create|merge)\b`)
+const MERGE = new RegExp(String.raw`\bgh${FLAG}*\s+pr${FLAG}*\s+merge\b`)
+
 /** True for the two commands the endgame guard cares about. */
 export function isGuardedCommand(command) {
-  return /\bgh\s+pr\s+(create|merge)\b/.test(command ?? '')
+  return GUARDED.test(command ?? '')
 }
 
 /**
@@ -41,7 +47,7 @@ export function guard(command, cwd = process.cwd()) {
   if (!existsSync(activeFile)) return null // not a wf-conducted worktree
   const active = readFileSync(activeFile, 'utf8').trim()
 
-  if (/\bgh\s+pr\s+merge\b/.test(command)) {
+  if (MERGE.test(command)) {
     return `this worktree is conducted by wf-impl for ${active} and must never merge. Merging is the user's decision.`
   }
 

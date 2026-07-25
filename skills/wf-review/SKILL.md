@@ -52,7 +52,9 @@ reportovací kontrakt:
   oslabené pokrytí kritéria — vždy reportuj. **Medium** = výkon,
   chybějící error handling — reportuj s kontextem. **Low** = stylové nitpicky —
   potichu zahoď, pokud nejsou zjevně cenné;
-- skupiny pravidel z packetu jsou checklist pro jejich soubory.
+- skupiny pravidel z packetu jsou checklist pro jejich soubory;
+- read-only znamení i žádné `gh pr create` / `gh pr merge` — endgame vlastní
+  wf-impl (u codex harnessu je tahle věta jediná obrana, guard tam není).
 
 Plán můžeš ZMENŠIT, když je diff zjevně menší, než kontrakt čekal (napiš to do
 reportu) — nikdy ne pod 1 kolo × 1 reviewer, nikdy víc než 4 revieweři v kole

@@ -44,7 +44,8 @@ Pro každý vybraný spec:
    `~/Workspace/specs/<project>/` — vezmi `file` ze `GATE status --json`, nikdy
    nehádej cestu relativní k repu) a ověř, že soubor existuje.
 2. Zjisti dirigenta: `GATE agents <spec> --json` → `conductor`
-   (`{harness: pi, model, effort}`) nebo `null`.
+   (`{harness: pi, model, effort}`) nebo `null` (= pi s vlastním default modelem;
+   Session Default projektu se přebíjí vždy, viz kroku 4).
 3. Napiš task soubor (tmp) přesně tohohle tvaru:
 
    > Načti skill `wf-impl` a proveď kontrakt na `<absolutní cesta ke spec>`.

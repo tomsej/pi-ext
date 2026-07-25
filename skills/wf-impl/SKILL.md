@@ -83,6 +83,11 @@ Podle `impl.harness`:
   harnessy nemají resumovatelnou session: opravné kolo = nový subagent, kterému
   předáš předchozí stav.
 
+Každému delegovanému agentovi (impl i reviewerům) do zadání napši: **nikdy
+nespouštěj `gh pr create` ani `gh pr merge`** — endgame vlastníš ty. U pi je
+guard extension, u Claude PreToolUse hook, ale codex harness žádný guard nemá:
+tam je ta věta v zadání jediná obrana.
+
 ## Fáze 2 — gate (full)
 
 `GATE verify SPEC full --json` spusť SÁM. Plné gaty se napříč worktree

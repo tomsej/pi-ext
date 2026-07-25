@@ -52,8 +52,12 @@ function resolveAgents(fm) {
   for (const [name, def] of Object.entries(fm?.agents ?? {})) roster[name] = def
   const errors = []
 
-  const lookup = (name, where) => {
-    if (name == null) return null
+  const lookup = (name, where, { required = true } = {}) => {
+    if (name == null) {
+      // A forgotten value (`- smoke:` in YAML) must not silently empty a round.
+      if (required) errors.push(`${where}: no agent named — every role and review focus needs one`)
+      return null
+    }
     if (typeof name !== 'string') {
       errors.push(`${where}: agent reference must be a roster name, got ${JSON.stringify(name)}`)
       return null
@@ -80,8 +84,8 @@ function resolveAgents(fm) {
     return { name, harness: def.harness, model: def.model, ...(def.effort ? { effort: def.effort } : {}) }
   }
 
-  const impl = lookup(fm?.impl, 'impl')
-  const conductor = lookup(fm?.conductor, 'conductor')
+  const impl = lookup(fm?.impl, 'impl', { required: fm?.impl !== undefined })
+  const conductor = lookup(fm?.conductor, 'conductor', { required: false })
   // The conductor IS the worktree's pi session (sc worktree create --provider
   // pi --model …), so it can only be a pi-harness agent.
   if (conductor && conductor.harness !== 'pi') {
@@ -96,7 +100,7 @@ function resolveAgents(fm) {
     }).filter(Boolean),
   )
 
-  return { roster, impl, conductor, review, errors }
+  return { roster, impl, conductor, review, errors, lookup }
 }
 
 function fail(msg) {
@@ -132,6 +136,11 @@ function check(file) {
   if (/<[a-zA-Z][\w -]*>/.test(fmRaw)) errors.push('frontmatter contains a placeholder like <name> — fill in the real value')
   if (/\b(TODO|TBD|FIXME)\b/.test(fmRaw)) errors.push('frontmatter contains TODO/TBD/FIXME — contracts must be complete')
 
+  // Roles, review focuses and judge agents all resolve through this one roster;
+  // its lookup errors are collected at the end of the function.
+  const agents = resolveAgents(fm)
+  const { impl, review } = agents
+
   const verify = fm?.verify ?? {}
   for (const mode of ['quick', 'full']) {
     const entries = verify[mode]
@@ -158,10 +167,12 @@ function check(file) {
         if (!e.rubric) errors.push(`${label}: judge entry needs a rubric`)
         if (!Number.isFinite(e.min_score)) errors.push(`${label}: judge entry needs a numeric min_score`)
         if (e.model) errors.push(`${label}: judge takes an \`agent\` from the roster, not a bare \`model\``)
-        const judge = resolveAgents(fm).roster[e.agent ?? DEFAULT_JUDGE]
-        if (!judge) errors.push(`${label}: agent "${e.agent}" is not in the agent roster`)
-        else if (!JUDGE_HARNESSES.has(judge.harness)) {
-          errors.push(`${label}: judge agent "${e.agent ?? DEFAULT_JUDGE}" runs on harness ${judge.harness}; judges run headless, so use a ${[...JUDGE_HARNESSES].join('/')} agent`)
+        // Same lookup as every other role, so a judge agent cannot dodge the
+        // model/harness/effort validation by being referenced only from verify.
+        const judgeName = e.agent ?? DEFAULT_JUDGE
+        const judge = agents.lookup(judgeName, label)
+        if (judge && !JUDGE_HARNESSES.has(judge.harness)) {
+          errors.push(`${label}: judge agent "${judgeName}" runs on harness ${judge.harness}; judges run headless, so use a ${[...JUDGE_HARNESSES].join('/')} agent`)
         }
       }
       if (e.severity && !['blocking', 'warning'].includes(e.severity)) {
@@ -174,9 +185,6 @@ function check(file) {
   if (fm?.engines || fm?.review?.rounds) {
     errors.push('legacy frontmatter: engines/review.rounds were replaced by an agent roster — use `impl: <agent>`, `conductor: <agent>`, and `review: [{<focus>: <agent>}]` (see the /wf skill)')
   }
-
-  const { impl, review, errors: agentErrors } = resolveAgents(fm)
-  errors.push(...agentErrors)
 
   if (!Array.isArray(fm?.review) || fm.review.length === 0 || fm.review.some(r => !r || Object.keys(r).length === 0)) {
     errors.push('review must be a list of rounds, each a non-empty {focus: agent} map')
@@ -205,6 +213,9 @@ function check(file) {
   if (!/akceptační kritéria/i.test(spec.body)) {
     errors.push('contract body is missing an "Akceptační kritéria" section')
   }
+
+  // Last: roster lookups above (roles, review focuses, judge agents) collect here.
+  errors.push(...agents.errors)
 
   if (errors.length) {
     for (const e of errors) process.stdout.write(`✖ ${e}\n`)
@@ -341,18 +352,31 @@ async function judgeScore(entry, cwd, roster) {
     'Reply with ONLY a JSON object: {"score": <integer 1-5>, "reasoning": "<one short paragraph>"}',
   ].join('\n')
   const judge = roster[entry.agent ?? DEFAULT_JUDGE]
+  if (!judge) return { error: `judge agent "${entry.agent ?? DEFAULT_JUDGE}" is not in the agent roster — run \`wf-gate check\` on this spec` }
+  // effort rides along as pi's/claude's thinking-level suffix (--model id:high).
+  const model = judge.effort ? `${judge.model}:${judge.effort}` : judge.model
   const cmd = process.env.WF_GATE_JUDGE_CMD ?? (judge.harness === 'pi'
-    ? `pi -p --no-session --no-extensions --no-skills --model ${judge.model}`
-    : `claude -p --output-format json --model ${judge.model}`)
+    ? `pi -p --no-session --no-extensions --no-skills --model ${model}`
+    : `claude -p --output-format json --model ${model}`)
+  // A hung judge would hold the per-project full-gate lock, so it is timeboxed
+  // like every command entry — judges just have no timeoutMs of their own.
+  const timeoutMs = Number(process.env.WF_GATE_JUDGE_TIMEOUT_MS ?? 10 * 60 * 1000)
   return new Promise(resolvePromise => {
-    const child = spawn('/bin/bash', ['-c', cmd], { cwd, stdio: ['pipe', 'pipe', 'pipe'] })
+    const child = spawn('/bin/bash', ['-c', cmd], { cwd, detached: true, stdio: ['pipe', 'pipe', 'pipe'] })
     let out = ''
+    let timedOut = false
+    const timer = setTimeout(() => {
+      timedOut = true
+      try { process.kill(-child.pid, 'SIGKILL') } catch { child.kill('SIGKILL') }
+    }, timeoutMs)
     child.stdout.on('data', d => { out += d })
     child.on('close', () => {
+      clearTimeout(timer)
+      if (timedOut) return resolvePromise({ error: `judge timed out after ${timeoutMs}ms (process tree killed)` })
       let parsed = lastJson(out)
       // `claude -p --output-format json` wraps the reply in {result: "..."}.
       if (parsed && typeof parsed.result === 'string') parsed = lastJson(parsed.result) ?? (() => { const m = parsed.result.match(/\{[\s\S]*\}/); try { return m ? JSON.parse(m[0]) : null } catch { return null } })()
-      resolvePromise(parsed && Number.isFinite(parsed.score) ? parsed : null)
+      resolvePromise(parsed && Number.isFinite(parsed.score) ? parsed : { error: 'judge produced no parsable verdict' })
     })
     child.stdin.end(prompt)
   })
@@ -424,9 +448,9 @@ async function verify(file, mode, { json }) {
 
     if (entry.kind === 'judge') {
       const verdict = await judgeScore(entry, cwd, roster)
-      if (!verdict) {
+      if (verdict.error) {
         rec.status = 'failed'
-        rec.note = 'judge produced no parsable verdict'
+        rec.note = verdict.error
       } else {
         rec.score = verdict.score
         rec.reasoning = verdict.reasoning
