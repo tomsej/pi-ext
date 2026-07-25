@@ -178,6 +178,19 @@ test("wf-review attests only after a passing quick gate, and never to bypass", (
 	assert.match(wfReview, /max 2|max 2 kola|Kola — max 2/);
 });
 
+// The codex harness has no guard of its own (pi has the extension, Claude the
+// PreToolUse hook), so for codex delegates this sentence is the only defence.
+test("delegating skills forbid the endgame to every delegated agent", () => {
+	for (const [name, body] of [
+		["wf-impl", wfImpl],
+		["wf-review", wfReview],
+	]) {
+		assert.match(body, /gh pr create/, `${name} never names the forbidden command`);
+		assert.match(body, /gh pr merge/, `${name} never names the forbidden command`);
+		assert.match(body, /codex/, `${name} does not say the codex harness is unguarded`);
+	}
+});
+
 test("wf-review treats findings as claims and owns the fixes", () => {
 	assert.match(wfReview, /nálezy jsou tvrzení|nálezy jsou TVRZENÍ/);
 	assert.match(wfReview, /revieweři jen\nreportují|revieweři jen reportují/);
