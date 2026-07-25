@@ -1,6 +1,6 @@
 ---
 name: wf-uat
-description: UAT phase for a workflow contract — derives scenarios from the contract's UAT section and acceptance criteria, executes them against a disposable instance, and delivers Czech manual steps for the user. Called automatically by wf-impl (uat: auto) or manually with a spec path.
+description: UAT phase for a workflow contract — derives scenarios from the contract's UAT section and acceptance criteria, executes them against a disposable instance, and delivers Czech manual steps for the user. Called automatically by wf-impl when the contract sets uat auto, or manually with a spec path.
 ---
 
 # wf-uat — user acceptance testing

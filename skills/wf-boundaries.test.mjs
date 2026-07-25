@@ -8,6 +8,9 @@ import { readFileSync, existsSync, mkdtempSync, mkdirSync, writeFileSync } from 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { spawnSync } from "node:child_process";
+import { createRequire } from "node:module";
+
+const yaml = createRequire(import.meta.url)("js-yaml");
 
 const skill = (name) => readFileSync(new URL(`./${name}/SKILL.md`, import.meta.url), "utf8");
 const GATE = new URL("../wf/wf-gate.mjs", import.meta.url).pathname;
@@ -30,12 +33,18 @@ test("wf-gate exists at the path the skills hand to the model", () => {
 	}
 });
 
-test("every wf skill declares a name and description for discovery", () => {
+// Parsed, not regexed: an unquoted "key: value" inside a description is
+// invalid YAML and pi drops the whole skill — silently, mid-pipeline.
+test("every wf skill has parsable frontmatter with a matching name and a description", () => {
 	for (const name of SKILLS) {
 		const fm = skill(name).match(/^---\n([\s\S]*?)\n---/);
 		assert.ok(fm, `${name} has no frontmatter`);
-		assert.match(fm[1], new RegExp(`name:\\s*${name}\\b`), `${name} frontmatter name mismatch`);
-		assert.match(fm[1], /description:\s*\S/, `${name} has no description`);
+		let parsed;
+		assert.doesNotThrow(() => {
+			parsed = yaml.load(fm[1]);
+		}, `${name} frontmatter is not valid YAML — pi will not load the skill`);
+		assert.equal(parsed.name, name, `${name} frontmatter name mismatch`);
+		assert.ok(parsed.description?.trim(), `${name} has no description`);
 	}
 });
 
