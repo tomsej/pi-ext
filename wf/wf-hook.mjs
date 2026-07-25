@@ -18,15 +18,45 @@ import { readFileSync, existsSync } from 'node:fs'
 import { execFileSync } from 'node:child_process'
 import { join } from 'node:path'
 
-// `gh` accepts global flags anywhere, so `gh -R owner/repo pr create` is the
-// same command as `gh pr create` and must not slip past on a token match.
-const FLAG = String.raw`(?:\s+-{1,2}[A-Za-z0-9-]+(?:[= ]\S+)?)`
-const GUARDED = new RegExp(String.raw`\bgh${FLAG}*\s+pr${FLAG}*\s+(create|merge)\b`)
-const MERGE = new RegExp(String.raw`\bgh${FLAG}*\s+pr${FLAG}*\s+merge\b`)
+// `gh` takes flags in any position and with attached values (`-Rowner/repo`),
+// so pattern matching on "gh pr create" loses an arms race it cannot see. Read
+// the tokens instead: the first two non-flag words after `gh` are the command.
+const VERBS = { create: 'create', new: 'create', merge: 'merge' } // `pr new` is an alias of `pr create`
+// Only flags that consume a following token; everything else stands alone.
+const VALUE_FLAGS = new Set(['-R', '--repo', '-H', '--hostname'])
+
+/**
+ * The guarded gh verb in a command line, or null. Returns 'create' or 'merge'
+ * for `gh [flags] pr [flags] create|new|merge`, and null when the invocation
+ * only asks for help (it changes nothing).
+ */
+export function guardedVerb(command) {
+  const tokens = (command ?? '').split(/\s+/).filter(Boolean)
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i] !== 'gh' && !tokens[i].endsWith('/gh')) continue
+    const words = []
+    let help = false
+    // Read to the end of this command (a shell separator starts a new one), so
+    // a --help anywhere in it is seen even when it trails the subcommand.
+    for (let j = i + 1; j < tokens.length && !/^(&&|\|\||;|\|)$/.test(tokens[j]); j++) {
+      const t = tokens[j]
+      if (!t.startsWith('-')) {
+        if (words.length < 2) words.push(t)
+        continue
+      }
+      if (t === '-h' || t === '--help') help = true
+      if (VALUE_FLAGS.has(t)) j++ // its value is not a word
+    }
+    if (help || words[0] !== 'pr') continue
+    const verb = VERBS[words[1]]
+    if (verb) return verb
+  }
+  return null
+}
 
 /** True for the two commands the endgame guard cares about. */
 export function isGuardedCommand(command) {
-  return GUARDED.test(command ?? '')
+  return guardedVerb(command) !== null
 }
 
 /**
@@ -34,7 +64,8 @@ export function isGuardedCommand(command) {
  * or null when the command is allowed (including every non-wf repo).
  */
 export function guard(command, cwd = process.cwd()) {
-  if (!isGuardedCommand(command)) return null
+  const verb = guardedVerb(command)
+  if (!verb) return null
 
   let root
   try {
@@ -47,7 +78,7 @@ export function guard(command, cwd = process.cwd()) {
   if (!existsSync(activeFile)) return null // not a wf-conducted worktree
   const active = readFileSync(activeFile, 'utf8').trim()
 
-  if (MERGE.test(command)) {
+  if (verb === 'merge') {
     return `this worktree is conducted by wf-impl for ${active} and must never merge. Merging is the user's decision.`
   }
 

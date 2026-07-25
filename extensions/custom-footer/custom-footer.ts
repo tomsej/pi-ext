@@ -28,6 +28,22 @@ import {
 
 // ── Helpers ────────────────────────────────────────────────────────────
 
+/** Statuses we never want to show. */
+const HIDDEN_STATUS_KEYS = new Set(["ponytail"]);
+
+/**
+ * Extension statuses (subagents / workflows / summaries) as widget lines, in their
+ * original wording. Sorted by key because Map order shifts on clear+set.
+ */
+export function statusLines(statuses: Iterable<[string, string]>, width: number): string[] {
+	return Array.from(statuses)
+		.filter(([key]) => !HIDDEN_STATUS_KEYS.has(key))
+		.sort(([a], [b]) => a.localeCompare(b))
+		.flatMap(([, text]) => text.split(/[\r\n]/))
+		.filter((line) => line.trim() !== "")
+		.map((line) => truncateToWidth(line, width));
+}
+
 function getGitBranch(cwd: string): string | null {
 	try {
 		return execSync("git branch --show-current", { cwd, encoding: "utf-8", timeout: 500 }).trim() || null;
@@ -42,6 +58,9 @@ export default function (pi: ExtensionAPI) {
 	let currentMode: PermissionMode = "safe";
 	let tuiRef: { requestRender(): void } | null = null;
 	let workedMs = 0;
+	// Captured from the footer factory — the only way an extension can read
+	// statuses set by other extensions via ctx.ui.setStatus().
+	let statuses: (() => ReadonlyMap<string, string>) | null = null;
 
 	pi.events.on("worktime:update", (data: unknown) => {
 		workedMs = (data as { ms?: number })?.ms ?? 0;
@@ -91,11 +110,26 @@ export default function (pi: ExtensionAPI) {
 			{ placement: "belowEditor" },
 		);
 
-		// Suppress default pi footer (empty render)
-		ctx.ui.setFooter(() => ({
-			render() { return []; },
+		// Extension statuses (subagents / workflows) above the editor, next to the
+		// background-terminals widget instead of at the very bottom.
+		setWidgetFn("extension-statuses", (_widgetTui: unknown) => ({
+			render(width: number): string[] {
+				return statuses ? statusLines(statuses(), width) : [];
+			},
 			invalidate() {},
 		}));
+
+		// Suppress default pi footer (empty render); it only serves to hand us the
+		// status provider.
+		ctx.ui.setFooter((_tui, _theme, footerData) => {
+			statuses = () => footerData.getExtensionStatuses();
+			return {
+				render() {
+					return [];
+				},
+				invalidate() {},
+			};
+		});
 	});
 
 	pi.on("session_shutdown", async () => {

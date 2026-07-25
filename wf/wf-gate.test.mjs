@@ -448,21 +448,42 @@ test('verify: judge entry scores via judge command', () => {
   assert.equal(verifyJson(fail).result, 'fail')
 })
 
-test('verify: judge command carries the roster agent harness, model and effort', () => {
+// PATH shims instead of a live LLM: they record how wf-gate invoked the judge.
+function judgeArgs(harnessBinary, agent) {
   const dir = tmp()
-  // PATH shim instead of a live LLM: it records how wf-gate invoked the judge.
   const bin = join(dir, 'bin')
   mkdirSync(bin)
   const log = join(dir, 'judge-cmd.txt')
-  writeFileSync(join(bin, 'pi'), `#!/bin/sh\ncat > /dev/null\necho "$@" > ${log}\necho '{"score": 5, "reasoning": "ok"}'\n`, { mode: 0o755 })
-  const fm = baseFrontmatter({ agents: { j: { harness: 'pi', model: 'zai/glm-5.2', effort: 'low' } } })
+  writeFileSync(
+    join(bin, harnessBinary),
+    `#!/bin/sh\ncat > /dev/null\necho "$@" > ${log}\necho '{"score": 5, "reasoning": "ok"}'\n`,
+    { mode: 0o755 },
+  )
+  const fm = baseFrontmatter({ agents: { j: agent } })
   fm.verify.full = [{ id: 'docs', kind: 'judge', agent: 'j', rubric: 'readable', min_score: 4 }]
   const file = writeSpec(dir, fm)
   const r = runGate(['verify', file, 'full', '--json'], { cwd: dir, env: { PATH: `${bin}:${process.env.PATH}` } })
   assert.equal(r.status, 0, r.stdout + r.stderr)
-  const args = readFileSync(log, 'utf8')
+  return readFileSync(log, 'utf8')
+}
+
+test('verify: pi judge takes its effort as the model thinking suffix', () => {
+  const args = judgeArgs('pi', { harness: 'pi', model: 'zai/glm-5.2', effort: 'low' })
   assert.match(args, /--model zai\/glm-5\.2:low/)
   assert.match(args, /-p\b/)
+})
+
+test('verify: claude judge takes its effort as a separate flag, never in --model', () => {
+  const args = judgeArgs('claude', { harness: 'claude', model: 'fable', effort: 'high' })
+  assert.match(args, /--model fable\b/)
+  assert.doesNotMatch(args, /fable:high/) // claude --model rejects a suffix
+  assert.match(args, /--effort high/)
+})
+
+test('verify: judge without an effort passes a bare model', () => {
+  const args = judgeArgs('pi', { harness: 'pi', model: 'zai/glm-5.2' })
+  assert.match(args, /--model zai\/glm-5\.2(\s|$)/)
+  assert.doesNotMatch(args, /--effort/)
 })
 
 test('verify: judge entry naming an unknown agent fails the entry, never crashes', () => {
@@ -731,15 +752,34 @@ test('hook: unrelated gh pr command passes through', () => {
   assert.equal(runHook("gh pr list --search 'create merge'", dir).status, 0)
 })
 
-test('hook: global gh flags before the subcommand do not slip past the guard', () => {
+test('hook: flags and aliases around the subcommand do not slip past the guard', () => {
   const dir = wfRepo()
   for (const command of [
     'gh -R owner/repo pr create --draft',
     'gh --repo=owner/repo pr create',
+    'gh -Rowner/repo pr create --draft', // attached short-option value
+    'gh pr -Rowner/repo merge 7',        // flag after the pr subcommand
+    'gh pr new --title x',              // documented alias of pr create
     'gh -R owner/repo pr merge 7 --squash',
     'cd /tmp && gh pr create --draft',
+    '/opt/homebrew/bin/gh pr merge 7',  // absolute path
   ]) {
     assert.equal(runHook(command, dir).status, 2, `not blocked: ${command}`)
+  }
+})
+
+test('hook: commands the conductor legitimately needs are not blocked', () => {
+  const dir = wfRepo()
+  for (const command of [
+    'gh pr view 7 --json state',
+    'gh pr checks',
+    "gh pr list --search 'create merge'",
+    'gh pr comment 3 --body "fixed; merge after CI is green"', // prose mentioning merge
+    'gh pr merge --help', // help output changes nothing
+    'gh pr create -h',
+    'git commit -m "create the merge helper"',
+  ]) {
+    assert.equal(runHook(command, dir).status, 0, `wrongly blocked: ${command}`)
   }
 })
 

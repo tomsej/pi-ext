@@ -240,7 +240,7 @@ function agents(file, { json }) {
     process.stdout.write(JSON.stringify({ roster, impl, conductor, review }, null, 2) + '\n')
     return
   }
-  const line = (role, a) => `${role.padEnd(26)}${a ? `${a.harness}/${a.model}${a.effort ? ` (${a.effort})` : ''} [${a.name}]` : '— session default'}\n`
+  const line = (role, a) => `${role.padEnd(26)}  ${a ? `${a.harness}/${a.model}${a.effort ? ` (${a.effort})` : ''} [${a.name}]` : '— pi default model'}\n`
   process.stdout.write(line('conductor', conductor))
   process.stdout.write(line('impl', impl))
   for (const [i, round] of review.entries()) {
@@ -353,11 +353,11 @@ async function judgeScore(entry, cwd, roster) {
   ].join('\n')
   const judge = roster[entry.agent ?? DEFAULT_JUDGE]
   if (!judge) return { error: `judge agent "${entry.agent ?? DEFAULT_JUDGE}" is not in the agent roster — run \`wf-gate check\` on this spec` }
-  // effort rides along as pi's/claude's thinking-level suffix (--model id:high).
-  const model = judge.effort ? `${judge.model}:${judge.effort}` : judge.model
+  // Effort is spelled differently per CLI: pi takes a --model id:level suffix,
+  // claude a separate --effort flag (a suffixed model id is rejected there).
   const cmd = process.env.WF_GATE_JUDGE_CMD ?? (judge.harness === 'pi'
-    ? `pi -p --no-session --no-extensions --no-skills --model ${model}`
-    : `claude -p --output-format json --model ${model}`)
+    ? `pi -p --no-session --no-extensions --no-skills --model ${judge.effort ? `${judge.model}:${judge.effort}` : judge.model}`
+    : `claude -p --output-format json --model ${judge.model}${judge.effort ? ` --effort ${judge.effort}` : ''}`)
   // A hung judge would hold the per-project full-gate lock, so it is timeboxed
   // like every command entry — judges just have no timeoutMs of their own.
   const timeoutMs = Number(process.env.WF_GATE_JUDGE_TIMEOUT_MS ?? 10 * 60 * 1000)
