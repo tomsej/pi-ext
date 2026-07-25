@@ -100,6 +100,10 @@ npm run sem:evaluate -- --staged
 npm run sem:evaluate -- --from origin/main --to HEAD
 ```
 
+### [pi-vcc](extensions/pi-vcc/)
+
+Vendored copy of [sting8k/pi-vcc](https://github.com/sting8k/pi-vcc) (MIT): algorithmic, LLM-free conversation compaction plus `vcc_recall`. Local addition: Czech-aware goal/preference extraction (diacritics-insensitive, Czech acknowledgements like "ano prosim" are no longer mistaken for the session goal).
+
 ### [Hypa Trim](extensions/hypa-trim/)
 
 Deactivates `hypa_read`/`hypa_grep`/`hypa_find`/`hypa_ls` (and their MCP aliases) so only `hypa_shell` stays active. The file tools duplicate Pi builtins and cost prompt tokens.

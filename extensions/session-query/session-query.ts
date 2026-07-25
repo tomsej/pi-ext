@@ -30,10 +30,10 @@ import {
 } from "@mariozechner/pi-coding-agent";
 import { Container, Markdown, Spacer, Text } from "@mariozechner/pi-tui";
 import { Type } from "typebox";
-import { normalize } from "@sting8k/pi-vcc/src/core/normalize";
-import { filterNoise } from "@sting8k/pi-vcc/src/core/filter-noise";
-import { buildSections } from "@sting8k/pi-vcc/src/core/build-sections";
-import { sanitize } from "@sting8k/pi-vcc/src/core/sanitize";
+import { normalize } from "../pi-vcc/src/core/normalize";
+import { filterNoise } from "../pi-vcc/src/core/filter-noise";
+import { buildSections } from "../pi-vcc/src/core/build-sections";
+import { sanitize } from "../pi-vcc/src/core/sanitize";
 
 const QUERY_SYSTEM_PROMPT = `You are a session context assistant. Given a session transcript and a question, provide a concise answer based on the session contents.
 

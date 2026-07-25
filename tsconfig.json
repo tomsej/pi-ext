@@ -10,12 +10,13 @@
 		"allowImportingTsExtensions": true,
 		"types": [],
 		"paths": {
-			"@sting8k/pi-vcc/src/*": ["./stubs/pi-vcc-src.d.ts"],
+			"@earendil-works/pi-coding-agent": ["./node_modules/@mariozechner/pi-coding-agent"],
 			"typebox": ["./node_modules/@mariozechner/pi-coding-agent/node_modules/typebox/build/index.d.mts"],
 			"typebox/*": ["./node_modules/@mariozechner/pi-coding-agent/node_modules/typebox/build/*"],
 			"@sinclair/typebox": ["./node_modules/@mariozechner/pi-coding-agent/node_modules/typebox/build/index.d.mts"],
 			"@sinclair/typebox/*": ["./node_modules/@mariozechner/pi-coding-agent/node_modules/typebox/build/*"]
 		}
 	},
-	"include": ["extensions/**/*.ts", "types.d.ts"]
+	"include": ["extensions/**/*.ts", "types.d.ts"],
+	"exclude": ["extensions/pi-vcc/tests", "extensions/pi-vcc/scripts"]
 }

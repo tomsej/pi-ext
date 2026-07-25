@@ -1,0 +1,95 @@
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { homedir } from "os";
+import { dirname, join } from "path";
+
+export const SETTINGS_PATH_DEFAULT = join(homedir(), ".pi", "agent", "pi-vcc-config.json");
+const settingsPath = (): string => process.env.PI_VCC_CONFIG_PATH ?? SETTINGS_PATH_DEFAULT;
+/** Backwards-compat export. Resolves at access time, not import time. */
+export const SETTINGS_PATH = settingsPath();
+
+export interface PiVccSettings {
+  /**
+   * When true, pi-vcc handles ALL compactions:
+   *   - /compact (no args)
+   *   - /compact <text>
+   *   - auto threshold / overflow
+   *   - /pi-vcc (always handled regardless)
+   *
+   * When false (default), pi-vcc only handles /pi-vcc; everything else
+   * falls back to pi core's default LLM-based compaction.
+   */
+  overrideDefaultCompaction: boolean;
+  /**
+   * When true (default), pi-vcc boosts the default keep-tail when the current
+   * keep:1 tail is small enough. Specifically: if the estimated tail for keep:1
+   * is <= MIN_SMART_TAIL_TOKENS (5k), increase keep up to the largest N whose
+   * tail stays <= MAX_SMART_TAIL_TOKENS (25k). Explicit `keep:N` from the user
+   * is always respected and never adjusted.
+   */
+  smartKeepTail: boolean;
+  /**
+   * When true (default), pi-vcc asks the agent to continue after a successful
+   * automatic compaction (threshold, or overflow after the assistant already
+   * finished with stop). This avoids a UX cliff where the agent finishes a response,
+   * immediately compacts, and then stops instead of continuing the task.
+   * Overflow retry is still owned by pi-core via willRetry.
+   */
+  continueAfterThresholdCompact: boolean;
+  /** Write debug snapshot to /tmp/pi-vcc-debug.json on each compaction. */
+  debug: boolean;
+}
+
+export const DEFAULT_SETTINGS: PiVccSettings = {
+  overrideDefaultCompaction: false,
+  smartKeepTail: true,
+  continueAfterThresholdCompact: true,
+  debug: false,
+};
+
+const readJson = (path: string): Record<string, unknown> | null => {
+  try {
+    return JSON.parse(readFileSync(path, "utf-8"));
+  } catch {
+    return null;
+  }
+};
+
+export function loadSettings(): PiVccSettings {
+  const parsed = readJson(settingsPath());
+  if (!parsed || typeof parsed !== "object") return { ...DEFAULT_SETTINGS };
+  return { ...DEFAULT_SETTINGS, ...(parsed as Partial<PiVccSettings>) };
+}
+
+/**
+ * Ensure ~/.pi/agent/pi-vcc-config.json exists with default keys.
+ * - File missing → create with full default block.
+ * - File exists but invalid JSON → no-op (don't clobber user file).
+ * - File exists and valid → fill in missing default keys, preserve existing values.
+ */
+export function scaffoldSettings(): void {
+  try {
+    const path = settingsPath();
+    const dir = dirname(path);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
+    if (!existsSync(path)) {
+      writeFileSync(path, `${JSON.stringify(DEFAULT_SETTINGS, null, 2)}\n`);
+      return;
+    }
+
+    const parsed = readJson(path);
+    if (!parsed || typeof parsed !== "object") return; // don't clobber
+
+    let changed = false;
+    const next: Record<string, unknown> = { ...parsed };
+    for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {
+      if (!(key in next)) {
+        next[key] = value;
+        changed = true;
+      }
+    }
+    if (changed) writeFileSync(path, `${JSON.stringify(next, null, 2)}\n`);
+  } catch {
+    // best-effort; never crash extension load
+  }
+}
