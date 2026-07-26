@@ -30,7 +30,7 @@
 		"test:worktime": "node --test extensions/worktime/worktime.test.mjs",
 		"test:handoff": "node --test extensions/handoff/handoff.test.mjs",
 		"test:pi-sem": "node --test extensions/pi-sem/core.test.mjs extensions/review/sem-guidance.test.mjs",
-		"test:leader-key": "node --test extensions/leader-key/workflow-discovery.test.mjs",
+		"test:leader-key": "bun test extensions/leader-key/workflow-actions.test.ts",
 		"test:workflow-boundaries": "node --test skills/wf-boundaries.test.mjs",
 		"typecheck": "tsc --noEmit -p tsconfig.json",
 		"test:vcc": "bun test extensions/pi-vcc/tests",

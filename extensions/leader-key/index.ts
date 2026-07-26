@@ -161,7 +161,7 @@ function buildEntries(
 		});
 	}
 
-	// ── Workflow (contract + chain) ──────────────────────────────────
+	// ── Contracts (wf pipeline) ─────────────────────────────────────────
 	entries.push(buildWorkflowEntries(pi));
 
 	// ── Review / Annotate ───────────────────────────────────────────────

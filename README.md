@@ -55,7 +55,9 @@ Requires [Pi](https://github.com/badlogic/pi) v0.37.3+.
 
 ### [Leader Key](extensions/leader-key/)
 
-Press `Ctrl+X` to open a floating command palette — like Vim's which-key or Emacs' leader key. Actions are organized into single-character groups (`s` for Session, `m` for Model, `f` for Favourites, `t` for Thinking level, `l` for Labels, `c` for Spec — the OpenSpec explore/spec/apply/review/archive flow). Auto-discovers extension commands and merges them with built-in actions.
+Press `Ctrl+X` to open a floating command palette — like Vim's which-key or Emacs' leader key. Actions are organized into single-character groups (`s` for Session, `m` for Model, `f` for Favourites, `t` for Thinking level, `l` for Labels, `c` for Contracts). Auto-discovers extension commands and merges them with built-in actions.
+
+`c` opens the project's wf contracts, built from `wf-gate status --json`, and offers only what each contract's state allows: launch or delete a `ready` one, resume a `running` one, open the PR or dispatch its comments when a PR is up, archive once merged — plus Review (the contract folder in plannotator) in every state. Deterministic actions run on the spot; the ones needing judgement stage a prompt for the `wf-run` skill.
 
 Includes sub-modules:
 - **Model Switcher** — searchable provider → model → thinking level picker

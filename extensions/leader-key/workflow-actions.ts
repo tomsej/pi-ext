@@ -1,171 +1,218 @@
 /**
- * Workflow (contract + chain) leader-key group.
+ * Contracts leader-key entry.
  *
- * New stages the /wf planner prompt (builds contract.md + a generated
- * .chain.json under .pi/chains/<name>/). Validate, Run, and Phase pop a fuzzy
- * picker over discovered workflows: Validate stages /plannotator-annotate on
- * the folder, Run stages /run-chain for the whole chain, Phase stages /run
- * for a single chosen step (re-run after a mid-chain failure).
+ * One picker over the project's wf contracts, built from `wf-gate status
+ * --json` — the same derived state the skills use, so the menu can never drift
+ * from reality. Picking a contract offers only the actions its state allows.
+ *
+ * Deterministic actions (check, archive, delete, open PR, review) run right
+ * here; a leader key should not spend a model turn on a file move. Actions
+ * needing judgement (launch, resume, resolve comments) stage a prompt for the
+ * wf-run skill, which owns dispatch.
  */
 
 import type { ExtensionAPI, ExtensionContext } from "@mariozechner/pi-coding-agent";
+import { spawn, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, renameSync, rmSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import type { TopLevelEntry } from "./types.js";
 import { searchableSelect } from "./model-switcher.js";
-import { discoverWorkflows } from "./workflow-discovery.mjs";
 
-interface WorkflowStep {
-	agent: string;
-	label?: string;
-	task: string;
-}
+const GATE = new URL("../../wf/wf-gate.mjs", import.meta.url).pathname;
 
-interface Workflow {
+export type ContractState = "ready" | "blocked" | "running" | "pr-open" | "done";
+
+export interface Contract {
 	name: string;
-	dir: string;
-	description?: string;
-	createdMs: number;
-	steps: WorkflowStep[];
+	file: string; // …/<name>/contract.md
+	state: ContractState;
+	deps?: string[];
+	blockedBy?: string[];
+	branch?: string;
+	worktree?: string;
+	lastCommit?: string;
+	unresolvedThreads?: number | null;
+	pr?: { number: number; isDraft?: boolean };
+	note?: string;
 }
 
-/** Compact local timestamp, e.g. "2025-01-30 14:07". */
-function fmtDate(ms: number): string {
-	const d = new Date(ms);
-	const p = (n: number) => String(n).padStart(2, "0");
-	return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+interface Item {
+	value: string;
+	label: string;
+	description: string;
 }
 
-/** Pop a fuzzy picker over discovered workflows. Returns the chosen one, or null. */
-async function pickWorkflow(ctx: ExtensionContext, title: string): Promise<Workflow | null> {
-	const workflows: Workflow[] = discoverWorkflows(join(ctx.cwd, ".pi", "chains"));
-	if (workflows.length === 0) {
-		ctx.ui.notify("No workflows in .pi/chains — create one first (Workflow → New)", "info");
+const NEW_CONTRACT = "\u0000new";
+
+const MARK: Record<ContractState, string> = {
+	running: "●",
+	"pr-open": "◐",
+	done: "✓",
+	blocked: "⊘",
+	ready: "○",
+};
+
+/** One line of context per contract — whatever its state makes relevant. */
+export function contractDetail(c: Contract): string {
+	switch (c.state) {
+		case "running":
+			return [c.branch, c.lastCommit && `commit ${c.lastCommit}`].filter(Boolean).join(" · ");
+		case "pr-open": {
+			const threads = c.unresolvedThreads ? `${c.unresolvedThreads} unresolved` : "no open threads";
+			return `PR #${c.pr?.number}${c.pr?.isDraft ? " (draft)" : ""} · ${threads}`;
+		}
+		case "done":
+			return `PR #${c.pr?.number} merged — archive it`;
+		case "blocked":
+			return `waiting for ${(c.blockedBy ?? []).join(", ")}`;
+		default:
+			return c.note ?? "ready to launch";
+	}
+}
+
+/** Picker rows: a pinned "new contract" action, then the contracts. */
+export function contractItems(contracts: Contract[]): Item[] {
+	return [
+		{ value: NEW_CONTRACT, label: "+ New contract", description: "turn the discussion into a contract (/wf)" },
+		...contracts.map((c) => ({
+			value: c.name,
+			label: `${MARK[c.state] ?? "○"} ${c.name}`,
+			description: `${c.state} · ${contractDetail(c)}`,
+		})),
+	];
+}
+
+/**
+ * Actions a contract's state allows. Review (the contract folder in
+ * plannotator) is always offered — reading is safe in every state.
+ */
+export function actionsFor(c: Contract): Item[] {
+	const review: Item = {
+		value: "review",
+		label: "Review",
+		description: "open the contract folder (contract + explanation) in plannotator",
+	};
+	const check: Item = { value: "check", label: "Check", description: "lint the contract with wf-gate" };
+	const openPr: Item = { value: "pr", label: "Open PR", description: `gh pr view ${c.pr?.number ?? ""} --web` };
+
+	switch (c.state) {
+		case "ready":
+		case "blocked":
+			return [
+				{ value: "launch", label: "Launch", description: "create a worktree and conduct this contract" },
+				review,
+				check,
+				{ value: "delete", label: "Delete", description: "remove the contract folder (asks to confirm)" },
+			];
+		case "running":
+			return [
+				{ value: "resume", label: "Resume", description: "nudge the conducting session to continue" },
+				review,
+				check,
+			];
+		case "pr-open":
+			return [
+				openPr,
+				{ value: "comments", label: "Resolve comments", description: "dispatch the worktree session at the open threads" },
+				review,
+			];
+		case "done":
+			return [
+				{ value: "archive", label: "Archive", description: "move the contract folder into _archive/" },
+				review,
+				openPr,
+			];
+	}
+}
+
+/** `wf-gate status --json` for the current project, or null when it fails. */
+function loadContracts(cwd: string): Contract[] | null {
+	const r = spawnSync("node", [GATE, "status", "--json"], { cwd, encoding: "utf8", timeout: 30_000 });
+	if (r.status !== 0 || !r.stdout) return null;
+	try {
+		return JSON.parse(r.stdout).specs as Contract[];
+	} catch {
 		return null;
 	}
-	const items = workflows.map((w) => ({
-		value: w.name,
-		label: w.name,
-		description: w.description ? `${fmtDate(w.createdMs)} · ${w.description}` : fmtDate(w.createdMs),
-	}));
-	const name = await searchableSelect<string>(ctx, title, items);
-	if (!name) return null;
-	return workflows.find((w) => w.name === name) ?? null;
+}
+
+function stage(ctx: ExtensionContext, text: string, hint: string) {
+	ctx.ui.setEditorText(text);
+	ctx.ui.notify(hint, "info");
+}
+
+async function runAction(ctx: ExtensionContext, action: string, c: Contract) {
+	const dir = dirname(c.file);
+	switch (action) {
+		case "launch":
+			return stage(ctx, `/skill:wf-run launch the contract "${c.name}" (${c.file})`, "Enter to plan and launch");
+		case "resume":
+			return stage(
+				ctx,
+				`/skill:wf-run resume the contract "${c.name}" (${c.file}) — its session looks stalled`,
+				"Enter to dispatch a resume",
+			);
+		case "comments":
+			return stage(
+				ctx,
+				`/skill:wf-run resolve the open review threads on PR #${c.pr?.number} for the contract "${c.name}" (${c.file})`,
+				"Enter to dispatch comment resolution",
+			);
+		case "review":
+			return stage(ctx, `/plannotator-annotate ${dir}/`, "Enter to open the contract folder");
+		case "check": {
+			const r = spawnSync("node", [GATE, "check", c.file], { cwd: ctx.cwd, encoding: "utf8", timeout: 60_000 });
+			const problems = (r.stdout + r.stderr).split("\n").filter((l) => l.startsWith("✖"));
+			return ctx.ui.notify(
+				r.status === 0 ? `${c.name}: contract is clean` : problems.slice(0, 3).join(" | ") || `${c.name}: check failed`,
+				r.status === 0 ? "info" : "error",
+			);
+		}
+		case "pr":
+			if (!c.pr) return ctx.ui.notify("No PR for this contract", "info");
+			spawn("gh", ["pr", "view", String(c.pr.number), "--web"], { cwd: ctx.cwd, detached: true, stdio: "ignore" }).unref();
+			return ctx.ui.notify(`Opening PR #${c.pr.number}`, "info");
+		case "archive": {
+			const archive = join(dirname(dir), "_archive");
+			mkdirSync(archive, { recursive: true });
+			let dest = join(archive, basename(dir));
+			if (existsSync(dest)) dest += `-${Date.now()}`;
+			renameSync(dir, dest);
+			return ctx.ui.notify(`Archived ${c.name} → _archive/`, "info");
+		}
+		case "delete": {
+			const confirm = await searchableSelect<string>(ctx, `Delete ${c.name}? This cannot be undone`, [
+				{ value: "no", label: "Cancel" },
+				{ value: "yes", label: "Delete permanently" },
+			]);
+			if (confirm !== "yes") return;
+			rmSync(dir, { recursive: true, force: true });
+			return ctx.ui.notify(`Deleted ${c.name}`, "info");
+		}
+	}
 }
 
 export function buildWorkflowEntries(_pi: ExtensionAPI): TopLevelEntry {
 	return {
-		type: "group",
-		group: {
-			key: "c",
-			label: "Workflow",
-			items: [
-				{
-					key: "n",
-					label: "New",
-					description: "build contract.md + workflow chain from the discussion (/wf)",
-					action: (ctx: ExtensionContext) => {
-						ctx.ui.setEditorText("/wf ");
-						ctx.ui.notify("Describe the goal, then Enter", "info");
-					},
-				},
-				{
-					key: "q",
-					label: "Quick",
-					description: "one-shot implement → review → PR, no contract (/wq)",
-					action: (ctx: ExtensionContext) => {
-						ctx.ui.setEditorText("/wq ");
-						ctx.ui.notify("Describe the goal, then Enter", "info");
-					},
-				},
-				{
-					key: "f",
-					label: "Finish PR",
-					description: "run pr-finisher on the current branch, no contract (draft PR → green CI)",
-					action: (ctx: ExtensionContext) => {
-						ctx.ui.setEditorText(
-							"/run pr-finisher No contract file exists. Create a draft PR and derive the business summary (what & why, for a non-technical reader) from the diff against the target branch. Iterate until CI is green and all review threads are resolved. Never merge.",
-						);
-						ctx.ui.notify("Enter to finish the PR (no acceptance gate)", "info");
-					},
-				},
-				{
-					key: "v",
-					label: "Validate",
-					description: "pick a workflow, annotate its contract + chain in plannotator",
-					action: async (ctx: ExtensionContext) => {
-						const wf = await pickWorkflow(ctx, "Validate which workflow?");
-						if (!wf) return;
-						ctx.ui.setEditorText(`/plannotator-annotate ${wf.dir}/`);
-						ctx.ui.notify("Enter to open the workflow folder in plannotator", "info");
-					},
-				},
-				{
-					key: "r",
-					label: "Run",
-					description: "pick a contract, run its workflow chain",
-					action: async (ctx: ExtensionContext) => {
-						const wf = await pickWorkflow(ctx, "Run which workflow?");
-						if (!wf) return;
-						ctx.ui.setEditorText(`/run-chain ${wf.name} -- execute the workflow per its contract`);
-						ctx.ui.notify("Enter to run the workflow", "info");
-					},
-				},
-				{
-					key: "a",
-					label: "Archive",
-					description: "pick a finished workflow, move it out of the picker into .pi/chains/.archive/",
-					action: async (ctx: ExtensionContext) => {
-						const wf = await pickWorkflow(ctx, "Archive which workflow?");
-						if (!wf) return;
-						const archiveDir = join(ctx.cwd, ".pi", "chains", ".archive");
-						mkdirSync(archiveDir, { recursive: true });
-						let dest = join(archiveDir, basename(wf.dir));
-						if (existsSync(dest)) dest += `-${Date.now()}`;
-						renameSync(wf.dir, dest);
-						ctx.ui.notify(`Archived ${wf.name} → .pi/chains/.archive/`, "info");
-					},
-				},
-				{
-					key: "d",
-					label: "Delete",
-					description: "pick a workflow and permanently remove its folder (asks to confirm)",
-					action: async (ctx: ExtensionContext) => {
-						const wf = await pickWorkflow(ctx, "Delete which workflow?");
-						if (!wf) return;
-						const confirm = await searchableSelect<string>(ctx, `Delete ${wf.name}? This cannot be undone`, [
-							{ value: "no", label: "Cancel" },
-							{ value: "yes", label: "Delete permanently" },
-						]);
-						if (confirm !== "yes") return;
-						rmSync(wf.dir, { recursive: true, force: true });
-						ctx.ui.notify(`Deleted ${wf.name}`, "info");
-					},
-				},
-				{
-					key: "p",
-					label: "Phase",
-					description: "pick a workflow + one phase, run just that agent (re-run after a failure)",
-					action: async (ctx: ExtensionContext) => {
-						const wf = await pickWorkflow(ctx, "Run one phase of which workflow?");
-						if (!wf) return;
-						if (wf.steps.length === 0) {
-							ctx.ui.notify("This workflow's chain has no simple agent steps", "info");
-							return;
-						}
-						const stepItems = wf.steps.map((s, i) => ({
-							value: String(i),
-							label: s.label ? `${s.agent} — ${s.label}` : s.agent,
-							description: s.task.length > 80 ? `${s.task.slice(0, 77)}...` : s.task,
-						}));
-						const idx = await searchableSelect<string>(ctx, "Run which phase?", stepItems);
-						if (idx === null) return;
-						const step = wf.steps[Number(idx)];
-						ctx.ui.setEditorText(`/run ${step.agent} ${step.task}`);
-						ctx.ui.notify("Enter to run just this phase (no acceptance gate)", "info");
-					},
-				},
-			],
+		type: "action",
+		key: "c",
+		label: "Contracts",
+		description: "wf contracts — state-driven actions",
+		action: async (ctx: ExtensionContext) => {
+			const contracts = loadContracts(ctx.cwd);
+			if (contracts === null) {
+				ctx.ui.notify("wf-gate status failed — is this a git repo with a project remote?", "error");
+				return;
+			}
+			const picked = await searchableSelect<string>(ctx, "Contracts", contractItems(contracts));
+			if (!picked) return;
+			if (picked === NEW_CONTRACT) {
+				return stage(ctx, "/wf ", "Describe the goal, then Enter");
+			}
+			const contract = contracts.find((c) => c.name === picked);
+			if (!contract) return;
+			const action = await searchableSelect<string>(ctx, `${contract.name} (${contract.state})`, actionsFor(contract));
+			if (action) await runAction(ctx, action, contract);
 		},
 	};
 }
