@@ -267,13 +267,13 @@ test('check: a review focus without an agent fails instead of emptying the round
   assert.match(r.stdout + r.stderr, /smoke/)
 })
 
-test('check: depends_on referencing missing spec fails', () => {
+test('check: depends_on is rejected — nothing enforces ordering any more', () => {
   const dir = tmp()
-  const fm = baseFrontmatter({ depends_on: ['does-not-exist'] })
-  const file = writeSpec(dir, fm)
+  const file = writeSpec(dir, baseFrontmatter({ depends_on: ['alpha'] }))
   const r = runGate(['check', file], { cwd: dir })
   assert.equal(r.status, 1)
-  assert.match(r.stdout + r.stderr, /does-not-exist/)
+  assert.match(r.stdout + r.stderr, /depends_on/)
+  assert.match(r.stdout + r.stderr, /order|sequenc/i)
 })
 
 test('check: judge entry naming a roster agent passes', () => {
@@ -578,18 +578,6 @@ test('status: spec with no branch and no PR is ready', () => {
   assert.equal(rep.specs.find(s => s.name === 'alpha').state, 'ready')
 })
 
-test('status: spec whose dependency is not done is blocked', () => {
-  const dir = gitRepo()
-  writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
-  writeSpec(dir, baseFrontmatter({ name: 'beta', depends_on: ['alpha'] }), { name: 'beta' })
-  commitAll(dir)
-  const env = ghShim(dir, { prs: [] })
-  const rep = statusJson(dir, env)
-  const beta = rep.specs.find(s => s.name === 'beta')
-  assert.equal(beta.state, 'blocked')
-  assert.deepEqual(beta.blockedBy, ['alpha'])
-})
-
 // Branch names are chosen by sc from the task text (`feat/permissions-single-table`)
 // and worktree dirs are codenames (`sc-zero-perovskite-654b`), so neither carries
 // the contract slug. The conducted worktree announces itself in .wf/active instead.
@@ -854,10 +842,10 @@ test('status: ignores directories without a contract.md, including _archive', ()
   assert.deepEqual(rep.specs.map(s => s.name), ['alpha'])
 })
 
-test('status: merged PR → done, and unblocks dependents', () => {
+test('status: merged PR → done', () => {
   const dir = gitRepo()
   writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
-  writeSpec(dir, baseFrontmatter({ name: 'beta', depends_on: ['alpha'] }), { name: 'beta' })
+  writeSpec(dir, baseFrontmatter({ name: 'beta' }), { name: 'beta' })
   commitAll(dir)
   const env = ghShim(dir, {
     prs: [{ number: 7, state: 'MERGED', isDraft: false, title: 'alpha', headRefName: 'feat-alpha', body: '<!-- wf-spec: alpha -->' }],

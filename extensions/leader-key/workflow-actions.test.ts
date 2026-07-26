@@ -34,7 +34,7 @@ test("a merged contract offers archiving", () => {
 });
 
 test("review is available in every state", () => {
-	for (const state of ["ready", "blocked", "running", "pr-open", "done"] as const) {
+	for (const state of ["ready", "running", "pr-open", "done"] as const) {
 		expect(values(contract({ state, pr: { number: 1 } }))).toContain("review");
 	}
 });
@@ -46,7 +46,6 @@ test("details carry what each state makes actionable", () => {
 	expect(contractDetail(contract({ state: "pr-open", pr: { number: 12, isDraft: true }, unresolvedThreads: 2 }))).toBe(
 		"PR #12 (draft) · 2 unresolved",
 	);
-	expect(contractDetail(contract({ state: "blocked", blockedBy: ["alpha", "beta"] }))).toBe("waiting for alpha, beta");
 	expect(contractDetail(contract({ state: "done", pr: { number: 9 } }))).toMatch(/#9 merged/);
 });
 

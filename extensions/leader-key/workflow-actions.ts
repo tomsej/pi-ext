@@ -20,14 +20,13 @@ import { searchableSelect } from "./model-switcher.js";
 
 const GATE = new URL("../../wf/wf-gate.mjs", import.meta.url).pathname;
 
-export type ContractState = "ready" | "blocked" | "running" | "pr-open" | "done";
+export type ContractState = "ready" | "running" | "pr-open" | "done";
 
 export interface Contract {
 	name: string;
 	file: string; // …/<name>/contract.md
 	state: ContractState;
 	deps?: string[];
-	blockedBy?: string[];
 	branch?: string;
 	worktree?: string;
 	lastCommit?: string;
@@ -48,7 +47,6 @@ const MARK: Record<ContractState, string> = {
 	running: "●",
 	"pr-open": "◐",
 	done: "✓",
-	blocked: "⊘",
 	ready: "○",
 };
 
@@ -63,8 +61,6 @@ export function contractDetail(c: Contract): string {
 		}
 		case "done":
 			return `PR #${c.pr?.number} merged — archive it`;
-		case "blocked":
-			return `waiting for ${(c.blockedBy ?? []).join(", ")}`;
 		default:
 			return c.note ?? "ready to launch";
 	}
@@ -97,7 +93,6 @@ export function actionsFor(c: Contract): Item[] {
 
 	switch (c.state) {
 		case "ready":
-		case "blocked":
 			return [
 				{ value: "launch", label: "Launch", description: "create a worktree and conduct this contract" },
 				review,

@@ -24,8 +24,7 @@ GATE = `node ~/Workspace/pi-ext/wf/wf-gate.mjs`
 
 ## 2. Plán
 
-- **launch** — `ready` (deps mergnuté)
-- **blocked** — ukaž, na co čeká
+- **launch** — `ready`
 - **resume** — session najdi přes `sc agents list --output json` (podle
   `worktree`/`branch` ze status JSONu) a navrhni follow-up místo nového worktree
 - **attention** — `pr-open` s nevyřešenými thready

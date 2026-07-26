@@ -37,7 +37,6 @@ Co zjistíš z repa, zjisti z repa; na zbytek se doptej, nehádej.
 ```yaml
 ---
 name: <kebab-case>
-depends_on: []            # specs that must be merged first
 uat: auto                 # auto = pipeline runs wf-uat; manual = user runs it
 
 conductor: opus           # pi session in the worktree; omit = pi default model

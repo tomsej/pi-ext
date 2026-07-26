@@ -207,12 +207,11 @@ function check(file) {
     }
   }
 
-  // Dependencies are sibling contract directories.
-  const specsHome = dirname(dirname(resolve(file)))
-  for (const dep of fm?.depends_on ?? []) {
-    if (!existsSync(join(specsHome, dep, CONTRACT))) {
-      errors.push(`depends_on references "${dep}" but ${dep}/${CONTRACT} does not exist`)
-    }
+  // Ordering between contracts is the human's call in wf-run (which also reads
+  // their Scope for collisions). Silently ignoring depends_on would let someone
+  // believe sequencing is enforced when nothing enforces it.
+  if (fm?.depends_on !== undefined) {
+    errors.push('depends_on is no longer supported — nothing derives ordering from it; sequence contracts yourself when wf-run offers the plan')
   }
 
   if (!/akceptační kritéria/i.test(spec.body)) {
@@ -638,7 +637,7 @@ function status({ dir, json }) {
     const file = join(specsDir, f)
     const spec = parseSpec(file)
     const name = specName(spec)
-    const rec = { name, file, deps: spec.fm?.depends_on ?? [] }
+    const rec = { name, file }
 
     const prs = prsForSpec(name, fetched)
     const merged = prs?.find(p => p.state === 'MERGED')
@@ -665,17 +664,6 @@ function status({ dir, json }) {
     specs.push(rec)
   }
 
-  // Dependency pass: a ready spec with unfinished deps is blocked.
-  const byName = new Map(specs.map(s => [s.name, s]))
-  for (const s of specs) {
-    if (s.state !== 'ready') continue
-    const blockedBy = s.deps.filter(d => byName.get(d)?.state !== 'done')
-    if (blockedBy.length) {
-      s.state = 'blocked'
-      s.blockedBy = blockedBy
-    }
-  }
-
   if (json) {
     process.stdout.write(JSON.stringify({ specs }, null, 2) + '\n')
     return
@@ -686,7 +674,6 @@ function status({ dir, json }) {
     const detail = s.state === 'done' ? `PR #${s.pr.number} merged — archive the spec`
       : s.state === 'pr-open' ? `PR #${s.pr.number}${s.pr.isDraft ? ' (draft)' : ''}${s.unresolvedThreads ? `, ${s.unresolvedThreads} unresolved thread(s)` : ''}`
       : s.state === 'running' ? `${s.branch}${s.lastCommit ? `, last commit ${s.lastCommit}` : ''}`
-      : s.state === 'blocked' ? `waiting for ${s.blockedBy.join(', ')}`
       : (s.note ?? '')
     process.stdout.write(pad(s.name, 28) + pad(s.state, 12) + detail + '\n')
   }

@@ -8,7 +8,7 @@
 		"skipLibCheck": true,
 		"resolveJsonModule": true,
 		"allowImportingTsExtensions": true,
-		"types": [],
+		"types": ["bun"],
 		"paths": {
 			"@earendil-works/pi-coding-agent": ["./node_modules/@mariozechner/pi-coding-agent"],
 			"typebox": ["./node_modules/@mariozechner/pi-coding-agent/node_modules/typebox/build/index.d.mts"],

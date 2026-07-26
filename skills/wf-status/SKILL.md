@@ -8,7 +8,7 @@ description: Show the truthful state of all workflow contracts (derived from git
 GATE = `node ~/Workspace/pi-ext/wf/wf-gate.mjs`
 
 1. Run `GATE status --json` from the repo root (human table: without --json).
-   States are derived live: ready / blocked (with blockers) / running (branch +
+   States are derived live: ready / running (the worktree conducting it, branch +
    last commit age) / pr-open (PR, draft?, unresolved threads) / done (merged).
 2. Present the table in Czech and add recommended actions:
    - `done` → offer to archive: `mv <adresář kontraktu> <specs dir>/_archive/`
