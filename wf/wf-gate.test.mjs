@@ -8,7 +8,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, basename } from 'node:path'
+import { join, basename, dirname } from 'node:path'
 import { spawnSync, execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 
@@ -44,9 +44,11 @@ function baseFrontmatter(over = {}) {
   }
 }
 
+// One directory per contract: <specs>/<name>/contract.md, with every artifact
+// of that contract (explanation, reports) as its sibling.
 function writeSpec(dir, fm, { name = fm.name ?? 'demo-spec' } = {}) {
-  mkdirSync(join(dir, 'specs'), { recursive: true })
-  const file = join(dir, 'specs', `${name}.md`)
+  mkdirSync(join(dir, 'specs', name), { recursive: true })
+  const file = join(dir, 'specs', name, 'contract.md')
   const body = '# Kontrakt\n\n## Akceptační kritéria\n\n- chová se správně\n'
   writeFileSync(file, `---\n${yaml.dump(fm)}---\n\n${body}`)
   return file
@@ -620,8 +622,8 @@ test('status: without --dir resolves ~/Workspace/specs/<project> from the origin
   execFileSync('git', ['-C', dir, 'remote', 'add', 'origin', 'git@github.com:acme/rocket-proj.git'])
   const home = tmp()
   const specsDir = join(home, 'Workspace', 'specs', 'rocket-proj')
-  mkdirSync(specsDir, { recursive: true })
-  writeFileSync(join(specsDir, 'alpha.md'),
+  mkdirSync(join(specsDir, 'alpha'), { recursive: true })
+  writeFileSync(join(specsDir, 'alpha', 'contract.md'),
     `---\n${'name: alpha\n'}---\n\n# Kontrakt\n\n## Akceptační kritéria\n\n- ok\n`)
   const env = { ...ghShim(dir, { prs: [] }), HOME: home }
   const rep = statusJson(dir, env, [])
@@ -651,9 +653,9 @@ test('begin: records the active spec and git-excludes .wf/', () => {
   const dir = gitRepo()
   writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
   commitAll(dir)
-  const r = runGate(['begin', 'specs/alpha.md'], { cwd: dir })
+  const r = runGate(['begin', 'specs/alpha/contract.md'], { cwd: dir })
   assert.equal(r.status, 0, r.stdout + r.stderr)
-  assert.equal(readFileSync(join(dir, '.wf', 'active'), 'utf8').trim(), 'specs/alpha.md')
+  assert.equal(readFileSync(join(dir, '.wf', 'active'), 'utf8').trim(), 'specs/alpha/contract.md')
   assert.match(readFileSync(join(dir, '.git', 'info', 'exclude'), 'utf8'), /\.wf\//)
 })
 
@@ -661,8 +663,8 @@ test('verify in a git repo appends a receipt with HEAD and result', () => {
   const dir = gitRepo()
   writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
   commitAll(dir)
-  runGate(['begin', 'specs/alpha.md'], { cwd: dir })
-  const r = runGate(['verify', 'specs/alpha.md', 'full', '--json'], { cwd: dir })
+  runGate(['begin', 'specs/alpha/contract.md'], { cwd: dir })
+  const r = runGate(['verify', 'specs/alpha/contract.md', 'full', '--json'], { cwd: dir })
   assert.equal(r.status, 0, r.stdout + r.stderr)
   const rec = receipts(dir).at(-1)
   assert.equal(rec.type, 'verify')
@@ -676,8 +678,8 @@ test('attest review appends an attest receipt at HEAD', () => {
   const dir = gitRepo()
   writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
   commitAll(dir)
-  runGate(['begin', 'specs/alpha.md'], { cwd: dir })
-  const r = runGate(['attest', 'review', 'specs/alpha.md'], { cwd: dir })
+  runGate(['begin', 'specs/alpha/contract.md'], { cwd: dir })
+  const r = runGate(['attest', 'review', 'specs/alpha/contract.md'], { cwd: dir })
   assert.equal(r.status, 0, r.stdout + r.stderr)
   const rec = receipts(dir).at(-1)
   assert.equal(rec.type, 'attest')
@@ -701,7 +703,7 @@ function wfRepo() {
   const dir = gitRepo()
   writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
   commitAll(dir)
-  runGate(['begin', 'specs/alpha.md'], { cwd: dir })
+  runGate(['begin', 'specs/alpha/contract.md'], { cwd: dir })
   return dir
 }
 
@@ -721,15 +723,15 @@ test('hook: active spec without receipts → pr create blocked', () => {
 
 test('hook: full verify + review attest at HEAD → pr create allowed', () => {
   const dir = wfRepo()
-  runGate(['verify', 'specs/alpha.md', 'full'], { cwd: dir })
-  runGate(['attest', 'review', 'specs/alpha.md'], { cwd: dir })
+  runGate(['verify', 'specs/alpha/contract.md', 'full'], { cwd: dir })
+  runGate(['attest', 'review', 'specs/alpha/contract.md'], { cwd: dir })
   assert.equal(runHook('gh pr create --draft --title x', dir).status, 0)
 })
 
 test('hook: commits after the receipts → pr create blocked as stale', () => {
   const dir = wfRepo()
-  runGate(['verify', 'specs/alpha.md', 'full'], { cwd: dir })
-  runGate(['attest', 'review', 'specs/alpha.md'], { cwd: dir })
+  runGate(['verify', 'specs/alpha/contract.md', 'full'], { cwd: dir })
+  runGate(['attest', 'review', 'specs/alpha/contract.md'], { cwd: dir })
   writeFileSync(join(dir, 'later.txt'), 'change after gates\n')
   commitAll(dir)
   const r = runHook('gh pr create --draft', dir)
@@ -739,8 +741,8 @@ test('hook: commits after the receipts → pr create blocked as stale', () => {
 
 test('hook: gh pr merge is always blocked in a wf worktree', () => {
   const dir = wfRepo()
-  runGate(['verify', 'specs/alpha.md', 'full'], { cwd: dir })
-  runGate(['attest', 'review', 'specs/alpha.md'], { cwd: dir })
+  runGate(['verify', 'specs/alpha/contract.md', 'full'], { cwd: dir })
+  runGate(['attest', 'review', 'specs/alpha/contract.md'], { cwd: dir })
   const r = runHook('gh pr merge 7 --squash', dir)
   assert.equal(r.status, 2)
   assert.match(r.stderr, /merge/i)
@@ -785,12 +787,38 @@ test('hook: commands the conductor legitimately needs are not blocked', () => {
 
 test('hook: dirty working tree blocks pr create even with complete receipts', () => {
   const dir = wfRepo()
-  runGate(['verify', 'specs/alpha.md', 'full'], { cwd: dir })
-  runGate(['attest', 'review', 'specs/alpha.md'], { cwd: dir })
+  runGate(['verify', 'specs/alpha/contract.md', 'full'], { cwd: dir })
+  runGate(['attest', 'review', 'specs/alpha/contract.md'], { cwd: dir })
   writeFileSync(join(dir, 'uncommitted.txt'), 'work in progress\n')
   const r = runHook('gh pr create --draft', dir)
   assert.equal(r.status, 2)
   assert.match(r.stderr, /uncommitted/i)
+})
+
+test('status: a contract directory carries its artifacts and archives as one move', () => {
+  const dir = gitRepo()
+  const file = writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
+  // Everything a contract produces lives beside it, so nothing is orphaned.
+  writeFileSync(join(dirname(file), 'explanation.md'), '# Vysvětlení\n')
+  commitAll(dir)
+  const rep = statusJson(dir, ghShim(dir, { prs: [] }), ['--dir', 'specs'])
+  const rec = rep.specs.find(s => s.name === 'alpha')
+  assert.equal(rec.state, 'ready')
+  assert.ok(rec.file.endsWith(join('specs', 'alpha', 'contract.md')), rec.file)
+  assert.equal(basename(dirname(rec.file)), 'alpha')
+  assert.ok(existsSync(join(dirname(rec.file), 'explanation.md')))
+})
+
+test('status: ignores directories without a contract.md, including _archive', () => {
+  const dir = gitRepo()
+  writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
+  mkdirSync(join(dir, 'specs', '_archive', 'old'), { recursive: true })
+  writeFileSync(join(dir, 'specs', '_archive', 'old', 'contract.md'), '---\nname: old\n---\n\n## Akceptační kritéria\n- ok\n')
+  mkdirSync(join(dir, 'specs', 'notes'), { recursive: true })
+  writeFileSync(join(dir, 'specs', 'notes', 'scratch.md'), 'just notes\n')
+  commitAll(dir)
+  const rep = statusJson(dir, ghShim(dir, { prs: [] }), ['--dir', 'specs'])
+  assert.deepEqual(rep.specs.map(s => s.name), ['alpha'])
 })
 
 test('status: merged PR → done, and unblocks dependents', () => {

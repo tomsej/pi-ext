@@ -27,11 +27,12 @@ const gate = (args, cwd) => spawnSync('node', [GATE, ...args], { cwd, encoding: 
 
 // ── helpers shared by assertions ─────────────────────────────────────────────
 
-/** The single spec the agent was supposed to write, or null. */
+/** The single contract the agent was supposed to write, or null. */
 function theSpec(ctx) {
   if (!existsSync(ctx.specsDir)) return null
-  const files = readdirSync(ctx.specsDir).filter(f => f.endsWith('.md'))
-  return files.length === 1 ? join(ctx.specsDir, files[0]) : null
+  const dirs = readdirSync(ctx.specsDir, { withFileTypes: true })
+    .filter(e => e.isDirectory() && existsSync(join(ctx.specsDir, e.name, 'contract.md')))
+  return dirs.length === 1 ? join(ctx.specsDir, dirs[0].name, 'contract.md') : null
 }
 
 const check = (name, ok, detail = '') => ({ name, ok: Boolean(ok), detail })
@@ -39,7 +40,7 @@ const check = (name, ok, detail = '') => ({ name, ok: Boolean(ok), detail })
 /** Assertions every contract-writing case shares. */
 function contractBasics(ctx) {
   const spec = theSpec(ctx)
-  const out = [check('wrote exactly one spec', spec, spec ? spec : `found ${existsSync(ctx.specsDir) ? readdirSync(ctx.specsDir).join(', ') : 'no specs dir'}`)]
+  const out = [check('wrote exactly one contract.md in its own directory', spec, spec ?? `found ${existsSync(ctx.specsDir) ? readdirSync(ctx.specsDir).join(', ') : 'no specs dir'}`)]
   if (!spec) return out
 
   const lint = gate(['check', spec], ctx.dir)

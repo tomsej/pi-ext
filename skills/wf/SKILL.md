@@ -1,6 +1,6 @@
 ---
 name: wf
-description: Vytvoř workflow kontrakt z dosavadní diskuse — zapíše ~/Workspace/specs/<project>/<name>.md (české tělo + strojový frontmatter) a zlintuje ho wf-gate. Použij, když uživatel řekne /wf nebo chce z probraného problému udělat kontrakt. Nikdy neimplementuje.
+description: Vytvoř workflow kontrakt z dosavadní diskuse — zapíše ~/Workspace/specs/<projekt>/<název>/contract.md (české tělo + strojový frontmatter) a zlintuje ho wf-gate. Použij, když uživatel řekne /wf nebo chce z probraného problému udělat kontrakt. Nikdy neimplementuje.
 ---
 
 # /wf — tvorba kontraktu
@@ -9,9 +9,11 @@ Z diskuse uděláš kontrakt. Výstup je JEDEN soubor a nic jiného — žádný
 žádné git operace. Spuštění řeší později `wf-run`.
 
 GATE = `node ~/Workspace/pi-ext/wf/wf-gate.mjs`
-Cesta: `~/Workspace/specs/<project>/<name>.md`, kde `<project>` = basename
-origin remote bez `.git` (fallback: název adresáře repa), `<name>` = kebab-case.
-Mimo repo záměrně: kontrakt se nesmí objevit v žádném commitu ani PR diffu.
+Cesta: `~/Workspace/specs/<projekt>/<název>/contract.md`, kde `<projekt>` =
+basename origin remote bez `.git` (fallback: název adresáře repa) a `<název>` =
+kebab-case. Vlastní adresář, protože vedle kontraktu vzniknou i jeho další
+artefakty (`explanation.md`) — archivace je pak jeden přesun. Mimo repo
+záměrně: kontrakt se nesmí objevit v žádném commitu ani PR diffu.
 
 ## 1. Tělo (česky, odrážky, žádná omáčka)
 

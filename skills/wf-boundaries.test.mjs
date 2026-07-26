@@ -51,7 +51,7 @@ test("every wf skill has parsable frontmatter with a matching name and a descrip
 // ── /wf — contract emitter ───────────────────────────────────────────────────
 
 test("wf writes the spec outside the repo and lints it with wf-gate", () => {
-	assert.match(wf, /~\/Workspace\/specs\/<project>\/<name>\.md/);
+	assert.match(wf, /~\/Workspace\/specs\/<projekt>\/<název>\/contract\.md/);
 	assert.match(wf, /GATE check/);
 });
 
@@ -121,6 +121,25 @@ test("the roster documented in wf is the roster wf-gate resolves", () => {
 	}
 });
 
+test("every skill points at the per-contract directory layout", () => {
+	for (const name of SKILLS) {
+		const body = skill(name);
+		if (!/Workspace\/specs/.test(body)) continue;
+		assert.doesNotMatch(body, /specs\/<(project|projekt)>\/<(name|název)>\.md/, `${name} still uses the flat spec layout`);
+	}
+	assert.match(wf, /<název>\/contract\.md/); // the contract file inside its directory
+});
+
+test("wf-explain writes markdown next to the contract, not a bundled HTML page", () => {
+	const explain = skill("wf-explain");
+	assert.match(explain, /explanation\.md/);
+	assert.doesNotMatch(explain, /explanation\.html/);
+	assert.doesNotMatch(explain, /inline JS|CSS|white-space/i); // no page-building ceremony
+	assert.match(explain, /mermaid/); // diagrams the viewer renders
+	assert.match(explain, /<details>/); // quiz answers stay hidden until opened
+	assert.match(explain, /- \[ \]/); // checkable UAT steps
+});
+
 // ── /wf-run — launcher, never an implementer ─────────────────────────────────
 
 test("wf-run launches pi conductors and never a Claude session", () => {
@@ -167,11 +186,14 @@ test("wf-impl satisfies the endgame guard rather than working around it", () => 
 	assert.match(wfImpl, /<!-- wf-spec: <name> -->/); // status discovery marker
 });
 
-test("wf-impl resolves the impl engine from the roster and keeps pi resumable", () => {
-	assert.match(wfImpl, /GATE agents SPEC --json/);
-	assert.match(wfImpl, /--session-id \$\(cat \.wf\/impl-session\)/);
-	assert.match(wfImpl, /subagent_spawn/); // claude/codex harnesses
-	assert.match(wfImpl, /Max 3 opravná kola/);
+test("wf-impl delegates implementation through the one spawn mechanism", () => {
+	assert.match(wfImpl, /GATE agents SPEC --json/); // engine comes from the roster
+	assert.match(wfImpl, /subagent_spawn/);
+	assert.match(wfImpl, /harness/);
+	assert.match(wfImpl, /Max \*\*3 opravná kola\*\*|Max 3 opravná kola/);
+	// One delegation path only: no second, headless-session mechanism.
+	assert.doesNotMatch(wfImpl, /impl-session|impl-run\.log|impl-handoff|impl-blocked/);
+	assert.doesNotMatch(wfImpl, /pi -p /);
 });
 
 // ── /wf-review — the cross-model guarantee lives here ────────────────────────

@@ -142,7 +142,7 @@ Endgame guard for the `wf` contract workflow. In a worktree conducted by the `wf
 
 ## Workflow (`wf`)
 
-Contract-driven pipeline: discuss → `/wf` writes a contract to `~/Workspace/specs/<project>/<name>.md` (outside any repo) → `wf-run` launches one managed worktree per contract → the `wf-impl` conductor delegates implementation, review, PR, UAT and explanation. Phase transitions are decided by exit codes from [`wf/wf-gate.mjs`](wf/wf-gate.mjs), never by an agent's claim.
+Contract-driven pipeline: discuss → `/wf` writes a contract to `~/Workspace/specs/<project>/<name>/contract.md` (outside any repo, one directory per contract so its explanation and reports sit beside it) → `wf-run` launches one managed worktree per contract → the `wf-impl` conductor delegates implementation, review, PR, UAT and explanation. Phase transitions are decided by exit codes from [`wf/wf-gate.mjs`](wf/wf-gate.mjs), never by an agent's claim.
 
 ```
 wf-gate check  <spec.md>              lint the contract's frontmatter

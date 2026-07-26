@@ -11,14 +11,15 @@ GATE = `node ~/Workspace/pi-ext/wf/wf-gate.mjs`
    States are derived live: ready / blocked (with blockers) / running (branch +
    last commit age) / pr-open (PR, draft?, unresolved threads) / done (merged).
 2. Present the table in Czech and add recommended actions:
-   - `done` → offer to archive: `mv <spec file> <specs dir>/_archive/`
-     (specs live in `~/Workspace/specs/<project>/`, outside any repo — no
-     commits or PRs involved; use the `file` paths from the status JSON).
+   - `done` → offer to archive: `mv <adresář kontraktu> <specs dir>/_archive/`
+     (each contract is a directory `~/Workspace/specs/<project>/<name>/` holding
+     contract.md and its artifacts, outside any repo — no commits or PRs
+     involved; derive the directory from the `file` path in the status JSON).
    - `pr-open` with unresolved threads → offer dispatching the worktree
      session via wf-run's resolve-comments action.
    - `running` with an old last commit → flag as possibly stalled; offer
-     resume via wf-run. Mention that a pi-run implementation can be inspected
-     in its worktree via `pi --session $(cat .wf/impl-session)`.
+     resume via wf-run. Mention that a running implementation can be inspected and taken over
+     via `/subagents` in the worktree session.
    - `ready` specs → mention wf-run to launch them.
 3. Take no action without the user's approval. This skill reads; it mutates
    only the approved archive commits.

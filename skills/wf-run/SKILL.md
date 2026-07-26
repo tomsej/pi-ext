@@ -14,8 +14,9 @@ GATE = `node ~/Workspace/pi-ext/wf/wf-gate.mjs`
 
 `GATE status --json` (z rootu repa) odvodí stav živě z gitu a gh:
 
-- `done` → nabídni archivaci `mv <file> <specs dir>/_archive/` (cesty z JSONu,
-  specy jsou mimo repo, žádný git) — až po schválení
+- `done` → nabídni archivaci celého adresáře kontraktu:
+  `mv <dirname(file)> <specs dir>/_archive/` (cesty z JSONu; specy jsou mimo
+  repo, žádný git) — až po schválení
 - `pr-open` s nevyřešenými thready → kandidát na „vyřeš komentáře"
 - `running` → kandidát na resume, když poslední commit zestárl; duplicitní
   worktree pro běžící spec nikdy
@@ -43,7 +44,7 @@ Pro každý vybraný spec:
    default modelem).
 3. Task soubor (tmp) přesně tohohle tvaru:
 
-   > Načti skill `wf-impl` a proveď kontrakt na `<absolutní cesta ke spec>`.
+   > Načti skill `wf-impl` a proveď kontrakt na `<absolutní cesta ke contract.md>`.
    > Kontrakt žije mimo repozitář — přečti ho z té přesné cesty. Pracuj jen
    > v tomhle worktree. Nevytvářej worktree. Když narazíš na produktové
    > rozhodnutí, které z kontraktu neodvodíš, napiš otázku do PR / review
@@ -59,9 +60,9 @@ Pro každý vybraný spec:
 
 **Resume:** `sc agent send --to id:<stable_target_id> --prompt "Resume wf-impl
 pro <spec>: hotové fáze odvoď z reality (git log, wf-gate verify, existence PR)
-a pokračuj od první nedokončené." --queue --output json`. Implementaci na pi
-harnessu si uživatel prohlédne přes `pi --session $(cat .wf/impl-session)` ve
-worktree, kdykoli headless běh neběží.
+a pokračuj od první nedokončené." --queue --output json`. Běžící implementaci si
+uživatel prohlédne (a může ji převzít) přes `/subagents` v session toho
+worktree.
 
 **Komentáře:** stejné `sc agent send`, prompt: „PR #<n> má <k> nevyřešených
 review threadů. Postupuj podle PR fáze wf-impl: nález ověř proti kódu, legitimní

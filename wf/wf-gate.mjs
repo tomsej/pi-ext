@@ -121,8 +121,12 @@ function parseSpec(file) {
   return { fm, fmRaw: m[1], body: raw.slice(m[0].length), file }
 }
 
+// One directory per contract: <specs>/<name>/contract.md, so every artifact of
+// a contract (explanation, reports) sits next to it and archiving is one move.
+const CONTRACT = 'contract.md'
+
 function specName(spec) {
-  return spec.fm?.name ?? basename(spec.file, '.md')
+  return spec.fm?.name ?? basename(dirname(resolve(spec.file)))
 }
 
 // ── check ────────────────────────────────────────────────────────────────────
@@ -203,10 +207,11 @@ function check(file) {
     }
   }
 
-  // Dependencies must exist next to this spec.
+  // Dependencies are sibling contract directories.
+  const specsHome = dirname(dirname(resolve(file)))
   for (const dep of fm?.depends_on ?? []) {
-    if (!existsSync(join(dirname(resolve(file)), `${dep}.md`))) {
-      errors.push(`depends_on references "${dep}" but ${dep}.md does not exist`)
+    if (!existsSync(join(specsHome, dep, CONTRACT))) {
+      errors.push(`depends_on references "${dep}" but ${dep}/${CONTRACT} does not exist`)
     }
   }
 
@@ -591,8 +596,13 @@ function unresolvedThreads(prNumber, cwd) {
 function status({ dir, json }) {
   const cwd = process.cwd()
   const specsDir = dir ? resolve(cwd, dir) : defaultSpecsDir(cwd)
+  // A contract is a directory holding contract.md; anything else (an _archive
+  // dir, stray notes) is ignored rather than reported as a broken spec.
   const files = existsSync(specsDir)
-    ? readdirSync(specsDir).filter(f => f.endsWith('.md')).sort()
+    ? readdirSync(specsDir, { withFileTypes: true })
+        .filter(e => e.isDirectory() && existsSync(join(specsDir, e.name, CONTRACT)))
+        .map(e => join(e.name, CONTRACT))
+        .sort()
     : [] // no specs yet for this project — an empty report, not an error
   const branches = repoBranches(cwd)
   const fetched = files.length ? allPrs(cwd) : []
