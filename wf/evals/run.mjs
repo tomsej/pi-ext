@@ -49,8 +49,14 @@ function contractBasics(ctx) {
   const agents = gate(['agents', spec, '--json'], ctx.dir)
   out.push(check('roster resolves', agents.status === 0, agents.stderr.trim().split('\n')[0] ?? ''))
 
-  const dirty = execFileSync('git', ['status', '--porcelain'], { cwd: ctx.dir, encoding: 'utf8' }).trim()
-  out.push(check('left the repo untouched', dirty === '', dirty.split('\n').slice(0, 3).join(' | ')))
+  // Tool caches (.sem index, .wf receipts, .pi state) are not the agent editing
+  // the project; the guarantee is that no source file changed and nothing was
+  // committed.
+  const TOOL_CACHES = /^..\s+\.(sem|wf|pi|pi-subagents)\//
+  const dirty = execFileSync('git', ['status', '--porcelain'], { cwd: ctx.dir, encoding: 'utf8' })
+    .split('\n')
+    .filter(l => l.trim() && !TOOL_CACHES.test(l))
+  out.push(check('left the repo untouched', dirty.length === 0, dirty.slice(0, 3).join(' | ')))
 
   const commits = execFileSync('git', ['rev-list', '--count', 'HEAD'], { cwd: ctx.dir, encoding: 'utf8' }).trim()
   out.push(check('committed nothing', commits === '1', `${commits} commits`))
