@@ -35,7 +35,10 @@ na tomtéž HEADu; `gh pr merge` je tu blokovaný vždy. Guard neobcházej, spl�
 
 > Implementuj kontrakt na `<SPEC>` striktně TDD, jedno akceptační kritérium po
 > druhém: RED (jeden failující test, který padá ze správného důvodu) → GREEN
-> (minimální kód) → refactor jen na zeleném. Drž se sekce Scope, respektuj
+> (minimální kód) → refactor jen na zeleném. Kritérium, které na baseline už
+> platí (zachované chování, regrese), RED nemá a mít nemůže: napiš k němu
+> charakterizační test, ukaž ho zelený před i po změně a označ ho v reportu
+> jako regresní. Nikdy kvůli RED nerozbíjej produkční kód. Drž se sekce Scope, respektuj
 > non-goals a vyloučené přístupy. Test nikdy neoslabuj, aby prošel. Commituj po
 > každém kritériu (Conventional Commits); branch nepřejmenovávej. Žádné review,
 > nespouštěj revieweře. **Nikdy `gh pr create` ani `gh pr merge`** — endgame
