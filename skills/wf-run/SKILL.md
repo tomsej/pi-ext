@@ -18,15 +18,16 @@ GATE = `node ~/Workspace/pi-ext/wf/wf-gate.mjs`
   `mv <dirname(file)> <specs dir>/_archive/` (cesty z JSONu; specy jsou mimo
   repo, žádný git) — až po schválení
 - `pr-open` s nevyřešenými thready → kandidát na „vyřeš komentáře"
-- `running` → kandidát na resume, když poslední commit zestárl; duplicitní
-  worktree pro běžící spec nikdy
+- `running` → worktree, který kontrakt diriguje (hlásí se sám přes `.wf/active`,
+  ne podle jména branche); kandidát na resume, když poslední commit zestárl.
+  Duplicitní worktree pro běžící spec nikdy
 
 ## 2. Plán
 
 - **launch** — `ready` (deps mergnuté)
 - **blocked** — ukaž, na co čeká
 - **resume** — session najdi přes `sc agents list --output json` (podle
-  worktree/branch) a navrhni follow-up místo nového worktree
+  `worktree`/`branch` ze status JSONu) a navrhni follow-up místo nového worktree
 - **attention** — `pr-open` s nevyřešenými thready
 
 Kolize: přečti `Scope` každého spustitelného kontraktu. Dva specy na stejné

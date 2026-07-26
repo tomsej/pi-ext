@@ -10,7 +10,7 @@
 // The spec is a markdown file with YAML frontmatter; see wf-gate.test.mjs and
 // the /wf skill for the schema. This script is the only non-model piece of the
 // workflow: exit codes here are authoritative, agent self-reports are not.
-import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync, appendFileSync, rmSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync, appendFileSync, rmSync, realpathSync } from 'node:fs'
 import { spawn, execFileSync } from 'node:child_process'
 import { basename, join, resolve, dirname } from 'node:path'
 import os from 'node:os'
@@ -291,8 +291,13 @@ function begin(file) {
   parseSpec(file) // validates the spec exists and parses
   mkdirSync(join(root, '.wf'), { recursive: true })
   writeFileSync(join(root, '.wf', 'active'), relSpecPath(file, root) + '\n')
-  // Keep .wf/ out of the repo without touching .gitignore.
-  const exclude = join(root, '.git', 'info', 'exclude')
+  // Keep .wf/ out of the repo without touching .gitignore. In a linked worktree
+  // .git is a file pointing at the real gitdir, so ask git for the path rather
+  // than assuming a directory.
+  const excludeRel = sh('git', ['rev-parse', '--git-path', 'info/exclude'], { cwd: root })
+  if (!excludeRel) fail('begin: cannot resolve .git/info/exclude')
+  const exclude = resolve(root, excludeRel)
+  mkdirSync(dirname(exclude), { recursive: true })
   const current = existsSync(exclude) ? readFileSync(exclude, 'utf8') : ''
   if (!current.includes('.wf/')) appendFileSync(exclude, (current.endsWith('\n') || current === '' ? '' : '\n') + '.wf/\n')
   process.stdout.write(`wf-gate begin: active spec is ${relSpecPath(file, root)}\n`)
@@ -533,15 +538,36 @@ function sh(cmd, args, opts = {}) {
   }
 }
 
-function repoBranches(cwd) {
-  const branches = new Set()
-  const wt = sh('git', ['worktree', 'list', '--porcelain'], { cwd })
-  for (const line of (wt ?? '').split('\n')) {
-    if (line.startsWith('branch refs/heads/')) branches.add(line.slice('branch refs/heads/'.length))
+// Which worktree conducts which contract. Branch names cannot answer this:
+// sc derives them from the task text and names the directory with a codename,
+// so neither contains the contract slug. `wf-gate begin` writes .wf/active in
+// the worktree, so every conducted worktree states its contract outright.
+// Same file, different spelling: /tmp vs /private/tmp, a symlinked checkout.
+// Comparing raw strings would silently report a conducted contract as ready.
+function samePath(a, b) {
+  const real = p => { try { return realpathSync(p) } catch { return resolve(p) } }
+  return real(a) === real(b)
+}
+
+function conductedWorktrees(cwd) {
+  const out = sh('git', ['worktree', 'list', '--porcelain'], { cwd })
+  const conducted = []
+  let path = null
+  for (const line of (out ?? '').split('\n')) {
+    if (line.startsWith('worktree ')) path = line.slice('worktree '.length)
+    if (!line.trim() && path) path = null
+    if (line.startsWith('branch refs/heads/') && path) {
+      const activeFile = join(path, '.wf', 'active')
+      if (!existsSync(activeFile)) continue
+      const active = readFileSync(activeFile, 'utf8').trim()
+      conducted.push({
+        path,
+        branch: line.slice('branch refs/heads/'.length),
+        spec: resolve(path, active), // .wf/active holds a repo-relative or absolute path
+      })
+    }
   }
-  const refs = sh('git', ['for-each-ref', '--format=%(refname:short)', 'refs/heads'], { cwd })
-  for (const b of (refs ?? '').split('\n')) if (b) branches.add(b)
-  return [...branches]
+  return conducted
 }
 
 // PRs are tied to a spec by an invisible `<!-- wf-spec: <name> -->` HTML
@@ -604,7 +630,7 @@ function status({ dir, json }) {
         .map(e => join(e.name, CONTRACT))
         .sort()
     : [] // no specs yet for this project — an empty report, not an error
-  const branches = repoBranches(cwd)
+  const conducted = conductedWorktrees(cwd)
   const fetched = files.length ? allPrs(cwd) : []
 
   const specs = []
@@ -617,8 +643,7 @@ function status({ dir, json }) {
     const prs = prsForSpec(name, fetched)
     const merged = prs?.find(p => p.state === 'MERGED')
     const open = prs?.find(p => p.state === 'OPEN')
-    const slug = name.toLowerCase()
-    const branch = branches.find(b => b.toLowerCase().includes(slug))
+    const worktree = conducted.find(w => samePath(w.spec, file))
 
     if (merged) {
       rec.state = 'done'
@@ -627,10 +652,11 @@ function status({ dir, json }) {
       rec.state = 'pr-open'
       rec.pr = open
       rec.unresolvedThreads = unresolvedThreads(open.number, cwd)
-    } else if (branch) {
+    } else if (worktree) {
       rec.state = 'running'
-      rec.branch = branch
-      const last = sh('git', ['log', '-1', '--format=%cr', branch], { cwd })
+      rec.branch = worktree.branch
+      rec.worktree = worktree.path
+      const last = sh('git', ['log', '-1', '--format=%cr', worktree.branch], { cwd })
       if (last) rec.lastCommit = last
     } else {
       rec.state = 'ready'

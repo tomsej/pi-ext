@@ -590,14 +590,33 @@ test('status: spec whose dependency is not done is blocked', () => {
   assert.deepEqual(beta.blockedBy, ['alpha'])
 })
 
-test('status: spec with a matching worktree branch is running', () => {
+// Branch names are chosen by sc from the task text (`feat/permissions-single-table`)
+// and worktree dirs are codenames (`sc-zero-perovskite-654b`), so neither carries
+// the contract slug. The conducted worktree announces itself in .wf/active instead.
+test('status: a worktree conducting the contract is running, whatever its branch is called', () => {
+  const dir = gitRepo()
+  const file = writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
+  commitAll(dir)
+  const wt = join(dir, 'sc-zero-perovskite-654b')
+  execFileSync('git', ['-C', dir, 'worktree', 'add', '-q', '-b', 'feat/unrelated-name', wt])
+  runGate(['begin', file], { cwd: wt })
+  const rep = statusJson(dir, ghShim(dir, { prs: [] }))
+  const rec = rep.specs.find(s => s.name === 'alpha')
+  assert.equal(rec.state, 'running')
+  assert.ok(rec.worktree.endsWith('sc-zero-perovskite-654b'), rec.worktree)
+})
+
+test('status: a worktree conducting another contract does not mark this one running', () => {
   const dir = gitRepo()
   writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
+  const other = writeSpec(dir, baseFrontmatter({ name: 'beta' }), { name: 'beta' })
   commitAll(dir)
-  execFileSync('git', ['-C', dir, 'worktree', 'add', '-q', '-b', 'feat-alpha-improvements', join(dir, '.wt-alpha')])
-  const env = ghShim(dir, { prs: [] })
-  const rep = statusJson(dir, env)
-  assert.equal(rep.specs.find(s => s.name === 'alpha').state, 'running')
+  const wt = join(dir, 'wt-beta')
+  execFileSync('git', ['-C', dir, 'worktree', 'add', '-q', '-b', 'feat/beta', wt])
+  runGate(['begin', other], { cwd: wt })
+  const rep = statusJson(dir, ghShim(dir, { prs: [] }))
+  assert.equal(rep.specs.find(s => s.name === 'alpha').state, 'ready')
+  assert.equal(rep.specs.find(s => s.name === 'beta').state, 'running')
 })
 
 test('status: open PR carrying the invisible wf-spec comment → pr-open with unresolved count', () => {
@@ -657,6 +676,20 @@ test('begin: records the active spec and git-excludes .wf/', () => {
   assert.equal(r.status, 0, r.stdout + r.stderr)
   assert.equal(readFileSync(join(dir, '.wf', 'active'), 'utf8').trim(), 'specs/alpha/contract.md')
   assert.match(readFileSync(join(dir, '.git', 'info', 'exclude'), 'utf8'), /\.wf\//)
+})
+
+test('begin works inside a linked worktree, where .git is a file', () => {
+  const dir = gitRepo()
+  const file = writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
+  commitAll(dir)
+  const wt = join(dir, 'sc-linked-worktree')
+  execFileSync('git', ['-C', dir, 'worktree', 'add', '-q', '-b', 'feat/linked', wt])
+  const r = runGate(['begin', file], { cwd: wt })
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  assert.ok(existsSync(join(wt, '.wf', 'active')))
+  // .wf/ must be ignored there too, or every gate run dirties the tree.
+  const porcelain = execFileSync('git', ['status', '--porcelain'], { cwd: wt, encoding: 'utf8' })
+  assert.doesNotMatch(porcelain, /\.wf/, porcelain)
 })
 
 test('verify in a git repo appends a receipt with HEAD and result', () => {
