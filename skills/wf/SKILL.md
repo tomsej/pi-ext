@@ -22,7 +22,14 @@ Co zjistíš z repa, zjisti z repa; na zbytek se doptej, nehádej.
 - **Současné chování / reprodukce:** jak to funguje teď; u bugu přesná reprodukce
 - **Business shrnutí:** 2–4 věty pro netechnického čtenáře — stane se z toho
   anglická sekce „Why" v PR
-- **Akceptační kritéria:** pozorovatelná chování; každé = jeden budoucí test
+- **Akceptační kritéria:** pozorovatelná chování; každé = jeden budoucí test.
+  Piš je co nejhrubší — kritérium je největší chování, které se ještě ověří jedním
+  testem; co sdílí fixture a liší se jen daty, je JEDNO kritérium s tabulkou
+  případů. Jemnější rozpad se později platí jedním TDD cyklem navíc za kus.
+  U každého pravidla, kde záleží na pořadí kroků, na remíze nebo na hraničním
+  případu, napiš rozhodnutí přímo do kritéria — nebo ho uveď jako otevřenou
+  otázku. Nedopsané pravidlo si každý implementátor vyloží jinak a review to
+  neodhalí, protože kontrakt měřítko nemá.
 - **Strategie testování:** ke každému kritériu typ testu (unit/integrační/e2e),
   veřejné rozhraní a data. Netestovatelné kritérium nahlas teď, ne po implementaci
 - **Technický handoff** (netriviální změny): invarianty, změněná veřejná

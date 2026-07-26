@@ -33,14 +33,23 @@ na tomtéž HEADu; `gh pr merge` je tu blokovaný vždy. Guard neobcházej, spl�
 `subagent_spawn` s `harness`, `model` a `reasoning_effort` z `impl`,
 `working_dir` = tenhle worktree. Zadání:
 
-> Implementuj kontrakt na `<SPEC>` striktně TDD, jedno akceptační kritérium po
-> druhém: RED (jeden failující test, který padá ze správného důvodu) → GREEN
-> (minimální kód) → refactor jen na zeleném. Kritérium, které na baseline už
+> Implementuj kontrakt na `<SPEC>` striktně TDD, ale po **skupinách kritérií**:
+> nejdřív si kritéria rozděl na soudržné celky (jeden modul nebo jedno chování,
+> typicky 3–5 kritérií, celkem ideálně do osmi skupin) a ten rozpad napiš do
+> reportu. Pak na každou skupinu jeden cyklus: RED (jeden test soubor s testy
+> celé skupiny, všechny padají ze správného důvodu) → GREEN (minimální kód) →
+> refactor jen na zeleném. V RED/GREEN pouštěj **jen dotčený test soubor** a
+> tiše (`--test-reporter=dot`); celou sadu nepouštěj vůbec, tu vlastní gate.
+> Kontext si drž krátký: nevypisuj soubory, které jsi právě zapsal, a nečti
+> znovu to, co už máš v kontextu.
+> Z kontraktu si přečti sekce Akceptační kritéria, Strategie testování, Scope,
+> Non-goals a Přístup; frontmatter, verify a review plán jsou věc dirigenta.
+> Kritérium, které na baseline už
 > platí (zachované chování, regrese), RED nemá a mít nemůže: napiš k němu
 > charakterizační test, ukaž ho zelený před i po změně a označ ho v reportu
 > jako regresní. Nikdy kvůli RED nerozbíjej produkční kód. Drž se sekce Scope, respektuj
 > non-goals a vyloučené přístupy. Test nikdy neoslabuj, aby prošel. Commituj po
-> každém kritériu (Conventional Commits); branch nepřejmenovávej. Žádné review,
+> každé skupině (Conventional Commits); branch nepřejmenovávej. Žádné review,
 > nespouštěj revieweře. **Nikdy `gh pr create` ani `gh pr merge`** — endgame
 > vlastní dirigent (u codex harnessu je tahle věta jediná obrana, guard tam
 > není). Produktové rozhodnutí, které z kontraktu neodvodíš, nehádej: skonči
