@@ -61,7 +61,11 @@ nikdy pod 1 kolo × 1 reviewer, nikdy víc než 4 revieweři v kole.
 
 Každý nález ověř proti kódu, než podle něj jednáš. Zamítni se zdůvodněním na
 úrovni kódu, nebo oprav a commitni. Významné nálezy můžou jít i do threadů
-`sc worktree review-add`.
+`sc worktree review-add`. Je-li opravený nález mechanicky vymahatelný nebo se
+zjevně bude opakovat, zkodifikuj ho hned skillem `review-guards` (ast-grep
+pravidlo s testem, kvalitativní → řádek v `REVIEW_GUIDELINES.md`) a commitni
+na tutéž branch — guard jde do PR a projde review jako každá jiná změna.
+Skilly, wf pipeline ani AGENTS.md needituj nikdy; takový návrh patří do reportu.
 
 **Kolo 2** — jeden reviewer projde JEN oblasti změněné fixy z kola 1
 (`ocr delegate preview --from <HEAD z kola 1> --to HEAD`). Bez fixů kolo 2 celé

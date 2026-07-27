@@ -127,7 +127,9 @@ hlásil zeleno na padlém běhu. Po každém novém commitu: `GATE verify SPEC q
 a byly-li fixy netriviální, i nový `GATE attest review SPEC`.
 
 Komentáře (boti, code scanning, rychlí lidi): ověř proti kódu, legitimní oprav,
-na každý thread odpověz commitem nebo zdůvodněním na úrovni kódu. **Nikdy
+na každý thread odpověz commitem nebo zdůvodněním na úrovni kódu. Mechanicky
+vymahatelný nebo opakující se nález zkodifikuj skillem `review-guards` (ast-grep
+pravidlo s testem / řádek v `REVIEW_GUIDELINES.md`) ve stejném commitu. **Nikdy
 nemerguj.** Změnily-li fixy viditelné chování, srovnej „What changed" s diffem.
 Další dávky komentářů přijdou dispatchem z `wf-run`.
 

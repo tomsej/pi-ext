@@ -127,6 +127,7 @@ done
 - **Don't blindly accept.** Evaluate each comment on merit. Some automated/AI review comments are wrong.
 - **Don't blindly reject.** If a comment points out a real issue, fix it even if the wording is off.
 - **Test before pushing.** Run the full test suite (or at minimum the affected module's tests) after every fix. Never push code you haven't validated.
+- **Codify repeatable findings.** If a fixed comment is mechanically enforceable or clearly recurring, add a guard in the same commit via the `review-guards` skill (ast-grep rule with test; qualitative → a line in `REVIEW_GUIDELINES.md`).
 - **One commit for all fixes.** Don't create separate commits per comment unless changes are unrelated.
 - **Reply to every comment.** Even if resolved by a code change, confirm what was done.
 - **Resolve only after replying.** Don't resolve threads without a reply — reviewers need to see acknowledgment.
