@@ -62,7 +62,8 @@
 			"./skills/wf-review",
 			"./skills/wf-uat",
 			"./skills/wf-explain",
-			"./skills/wf-status"
+			"./skills/wf-status",
+			"./skills/review-guards"
 		],
 		"prompts": [
 			"./prompts"

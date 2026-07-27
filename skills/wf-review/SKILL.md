@@ -37,6 +37,15 @@ a modelem, každý čerstvý kontext. To je ta cross-model garance, nikdy je
 nesesypej na jeden model. Každý dostane packet, svůj focus, read-only instrukci
 a tenhle reportovací kontrakt:
 
+- reviewer s harnessem **claude**: prompt MUSÍ začínat `/code-review` a hned za
+  ním packet + focus + kontrakt — spustí to nativní review mód Claude Code
+  (ověřeno: SDK slash command interpretuje a instrukce za ním respektuje).
+  U ostatních harnessů žádný slash prefix — codex by `/review` dostal jako
+  prostý text, nativní mód se přes subagenta spustit nedá;
+- reviewer s harnessem **pi**: do promptu přidej, ať na dopadovou analýzu
+  používá `sem_impact` (co nález rozbíjí jinde, dotčené testy) a `sem_context`
+  (kompaktní kontext entity místo čtení celých souborů);
+
 - nálezy jsou TVRZENÍ: severita + `file:line` (nálezy na úrovni kontraktu —
   nepokryté kritérium, změna mimo scope — odkazují na kritérium) + co je špatně
   a proč to vadí;

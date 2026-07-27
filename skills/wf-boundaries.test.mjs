@@ -205,6 +205,13 @@ test("wf-review spawns the contract's panel in parallel with fresh contexts", ()
 	assert.match(wfReview.replace(/\s+/g, " "), /nikdy je nesesypej na jeden model/); // the cross-model guarantee
 });
 
+test("wf-review sends claude reviewers through the native /code-review command", () => {
+	const flat = wfReview.replace(/\s+/g, " ");
+	assert.match(flat, /harnessem \*\*claude\*\*: prompt MUS\u00cd za\u010d\u00ednat `\/code-review`/);
+	assert.match(flat, /codex by `\/review` dostal jako prost\u00fd text/);
+	assert.match(flat, /harnessem \*\*pi\*\*:.*sem_impact.*sem_context/);
+});
+
 test("wf-review attests only after a passing quick gate, and never to bypass", () => {
 	assert.match(wfReview, /GATE verify <spec> quick/);
 	assert.match(wfReview, /GATE attest review <spec>/);

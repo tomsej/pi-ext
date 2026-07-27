@@ -96,6 +96,10 @@ ať se na vytíženém stroji odloží místo flaky failu), `judge` (bez příka
 `rubric`, `min_score` 1–5, `agent` z rosteru — na kvalitativní kritéria).
 `severity: warning` = reportuje se, neblokuje.
 
+Strukturální pravidla ("žádný console.log mimo logger", "handler volá auth")
+řeš jako `hard` s `ast-grep scan` místo `judge` — deterministické a zadarmo;
+pravidla v projektu zakládá skill `review-guards`.
+
 Pravidla příkazů (každé zaplacené nočním během):
 
 - má-li projekt gate skript / task runner, odkazuj na něj — jeden zdroj pravdy
