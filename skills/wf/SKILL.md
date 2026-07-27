@@ -26,6 +26,8 @@ Co zjistíš z repa, zjisti z repa; na zbytek se doptej, nehádej.
   Piš je co nejhrubší — kritérium je největší chování, které se ještě ověří jedním
   testem; co sdílí fixture a liší se jen daty, je JEDNO kritérium s tabulkou
   případů. Jemnější rozpad se později platí jedním TDD cyklem navíc za kus.
+  Rozpočet: vejdi se do ~12 kritérií; přes 15 znamená, že slučuješ špatně —
+  vrať se a slučuj do tabulek, dokud se nevejdeš.
   U každého pravidla, kde záleží na pořadí kroků, na remíze nebo na hraničním
   případu, napiš rozhodnutí přímo do kritéria — nebo ho uveď jako otevřenou
   otázku. Nedopsané pravidlo si každý implementátor vyloží jinak a review to
@@ -33,7 +35,10 @@ Co zjistíš z repa, zjisti z repa; na zbytek se doptej, nehádej.
 - **Strategie testování:** ke každému kritériu typ testu (unit/integrační/e2e),
   veřejné rozhraní a data. Netestovatelné kritérium nahlas teď, ne po implementaci
 - **Technický handoff** (netriviální změny): invarianty, změněná veřejná
-  rozhraní, současný → navržený call stack, rizika. Neznámé nevymýšlej
+  rozhraní, současný → navržený call stack, rizika. Neznámé nevymýšlej.
+  Invarianty piš pozorovatelně (co je vidět na veřejném rozhraní), nikdy jako
+  předepsaný mechanismus — „stejný vstup dá stejný výstup" ano, „stav se
+  klonuje / je immutable" ne; implementaci volí implementátor
 - **Přístup:** preferovaná řešení a co je vyloučené (např. „žádná nová závislost")
 - **Non-goals:** co vědomě neřešíme
 - **Scope:** povolené soubory/moduly — `wf-run` z toho detekuje kolize kontraktů
@@ -95,6 +100,10 @@ Pravidla příkazů (každé zaplacené nočním během):
 
 - má-li projekt gate skript / task runner, odkazuj na něj — jeden zdroj pravdy
   pro pipeline, CI i ruční běh; žádné inline mega-příkazy
+- nový gate skript zakládej jen když projekt žádný task runner nemá **a** full
+  má víc než jednu fázi; jinak `verify` míří přímo na existující příkaz
+  (`npm test`, `cargo test`, `make check`). Pojmenované fáze, timeouty a
+  kill-tree níž jsou požadavky na *existující* gate, ne důvod psát nový
 - quick = levná kontrola po review fixech; full = všechno a musí pokrýt všechna
   kritéria přes veřejná rozhraní; drahé kontroly do quick nepatří
 - `timeoutMs` musí přežít **studený start** ve svěžím worktree (deps, build, cache)

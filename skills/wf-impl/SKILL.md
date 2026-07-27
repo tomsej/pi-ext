@@ -30,16 +30,24 @@ na tomtéž HEADu; `gh pr merge` je tu blokovaný vždy. Guard neobcházej, spl�
 
 ## Fáze 1 — implementace
 
-`subagent_spawn` s `harness`, `model` a `reasoning_effort` z `impl`,
-`working_dir` = tenhle worktree. Zadání:
+Kontrakt do ~12 kritérií a bez rizik v technickém handoffu implementuj **sám
+v téhle session** — delegace kupuje čerstvý kontext, který tu ještě nikdo
+nešpinil, a platí se dvojím čtením kontraktu. `subagent_spawn` (s `harness`,
+`model` a `reasoning_effort` z `impl`, `working_dir` = tenhle worktree) použij
+pro větší kontrakty a pro opravná kola po failu gatu. V obou režimech platí
+totéž zadání:
 
 > Implementuj kontrakt na `<SPEC>` striktně TDD, ale po **skupinách kritérií**:
 > nejdřív si kritéria rozděl na soudržné celky (jeden modul nebo jedno chování,
 > typicky 3–5 kritérií, celkem ideálně do osmi skupin) a ten rozpad napiš do
 > reportu. Pak na každou skupinu jeden cyklus: RED (jeden test soubor s testy
 > celé skupiny, všechny padají ze správného důvodu) → GREEN (minimální kód) →
-> refactor jen na zeleném. V RED/GREEN pouštěj **jen dotčený test soubor** a
-> tiše (`--test-reporter=dot`); celou sadu nepouštěj vůbec, tu vlastní gate.
+> refactor jen na zeleném. Cíl je 1–2 test případy na kritérium (tabulka případů
+> = jeden test); víc jen tam, kde kritérium jinak nepřibiješ. V RED/GREEN pouštěj **jen dotčený test soubor**,
+> a to jedním příkazem, který je krátký na zeleno i vypovídající na červeno
+> (`node --test <soubor> 2>&1 | tail -30` nebo ekvivalent v jazyce projektu).
+> Ten samý test nikdy nespouštěj dvakrát jen kvůli jinému reporteru nebo grepu —
+> radši jeden dražší výstup než dva běhy. Celou sadu nepouštěj vůbec, tu vlastní gate.
 > Kontext si drž krátký: nevypisuj soubory, které jsi právě zapsal, a nečti
 > znovu to, co už máš v kontextu.
 > Z kontraktu si přečti sekce Akceptační kritéria, Strategie testování, Scope,
