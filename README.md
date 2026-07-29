@@ -77,7 +77,7 @@ Shows working directory, git branch, token usage, cost, context window utilizati
 
 ### [Tool Pills](extensions/tool-pills/)
 
-Compact colored pill labels for built-in tools (`ls`, `read`, `find`, `grep`, `bash`) with collapsed output, plus Shiki-powered syntax-highlighted diffs for `write` and `edit`. Makes long tool outputs scannable without losing detail on demand.
+Compact colored pill labels for built-in tools (`ls`, `read`, `bash`) with collapsed output, plus Shiki-powered syntax-highlighted diffs for `write` and `edit`. Third-party tools keep their own renderers. Makes long tool outputs scannable without losing detail on demand.
 
 ### [Code Review](extensions/review/)
 
