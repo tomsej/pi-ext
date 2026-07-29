@@ -1,8 +1,62 @@
 // The palette's whole job is offering the right actions for a contract's
 // state. That mapping is pure, so it is tested directly; the side effects
 // around it (spawn, ui) are thin wrappers over commands tested in wf/.
-import { expect, test } from "bun:test";
+import { expect, mock, spyOn, test } from "bun:test";
+import { buildEntries } from "./index.ts";
 import { type Contract, actionsFor, contractDetail, contractItems } from "./workflow-actions.ts";
+
+const keys = (entries: ReturnType<typeof buildEntries>) => entries.map((entry) =>
+	entry.type === "group" ? entry.group.key : entry.key,
+);
+
+test("the leader palette only exposes frequent actions", () => {
+	const entries = buildEntries({} as never, async () => {});
+	expect(keys(entries)).toEqual(["m", "c", "p", "t", "q"]);
+
+	const plannotator = entries.find((entry) => entry.type === "group" && entry.group.key === "p");
+	expect(plannotator?.type).toBe("group");
+	if (plannotator?.type === "group") {
+		expect(plannotator.group.items.map((item) => item.key)).toEqual(["a", "r", "f"]);
+	}
+});
+
+test("leader actions launch their native commands and quit directly", async () => {
+	const entries = buildEntries({} as never, async () => {});
+	const setEditorText = mock((_text: string) => {});
+	const shutdown = mock(() => {});
+	const ctx = {
+		ui: {
+			input: mock(async () => "docs/my plan.md"),
+			setEditorText,
+		},
+		shutdown,
+	} as never;
+	const stdinEmit = spyOn(process.stdin, "emit").mockImplementation(() => true);
+
+	try {
+		const plannotator = entries.find((entry) => entry.type === "group" && entry.group.key === "p");
+		if (plannotator?.type !== "group") throw new Error("Plannotator group missing");
+		for (const key of ["a", "r", "f"]) {
+			await plannotator.group.items.find((item) => item.key === key)?.action(ctx);
+		}
+		for (const key of ["t", "q"]) {
+			const entry = entries.find((candidate) => candidate.type === "action" && candidate.key === key);
+			if (entry?.type !== "action") throw new Error(`Action ${key} missing`);
+			await entry.action(ctx);
+		}
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(setEditorText.mock.calls.map(([command]) => command)).toEqual([
+			"/plannotator-last",
+			"/plannotator-review",
+			"/plannotator-annotate docs/my plan.md",
+			"/tree",
+		]);
+		expect(shutdown).toHaveBeenCalledTimes(1);
+	} finally {
+		stdinEmit.mockRestore();
+	}
+});
 
 const contract = (over: Partial<Contract> = {}): Contract => ({
 	name: "parse-duration-days",

@@ -22,219 +22,78 @@ import type {
 	Theme,
 } from "@mariozechner/pi-coding-agent";
 import { matchesKey, parseKey, Key } from "@mariozechner/pi-tui";
-import { searchableSelect } from "./model-switcher.js";
 import { runFavouriteModels } from "./favourite-models.js";
 import { OverlayFrame } from "../shared/overlay.js";
-import { copyToClipboard } from "../shared/clipboard.js";
 import type { ActionItem, ActionGroup, TopLevelEntry } from "./types.js";
-import { buildSessionEntries } from "./session-actions.js";
-import { buildLabelEntries } from "./label-actions.js";
 import { buildWorkflowEntries } from "./workflow-actions.js";
-import { registerBridgeCommands } from "./context-helpers.js";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Build top-level entries
 // ─────────────────────────────────────────────────────────────────────────────
 
-function buildEntries(
+function runCommand(ctx: ExtensionContext, command: string) {
+	ctx.ui.setEditorText(command);
+	setTimeout(() => process.stdin.emit("data", "\r"), 0);
+}
+
+export function buildEntries(
 	pi: ExtensionAPI,
-	ctx: ExtensionContext,
 	openFavouriteModels: (ctx: ExtensionContext) => Promise<void>,
 ): TopLevelEntry[] {
-	const entries: TopLevelEntry[] = [];
-
-	// ── Session ─────────────────────────────────────────────────────────
-	entries.push(buildSessionEntries(pi));
-
-	// ── Labels ──────────────────────────────────────────────────────────
-	entries.push(buildLabelEntries(pi));
-
-	// ── Scoped models ───────────────────────────────────────────────────
-	entries.push({
-		type: "action",
-		key: "m",
-		label: "Scoped",
-		description: "quick-switch Pi scoped models",
-		action: (ctx) => openFavouriteModels(ctx),
-	});
-
-	// ── Permissions mode ────────────────────────────────────────────────
-	entries.push({
-		type: "action",
-		key: "p",
-		label: "Permissions",
-		description: "switch permission mode",
-		action: async (ctx) => {
-			const ALL_MODES = ["yolo", "safe", "read-only"] as const;
-			const MODE_DESCRIPTIONS: Record<string, string> = {
-				yolo: "all commands allowed, no checks",
-				safe: "permission rules active",
-				"read-only": "read-only, no writes except /tmp",
-			};
-
-			const items = ALL_MODES.map((m) => ({
-				value: m,
-				label: m,
-				description: MODE_DESCRIPTIONS[m],
-			}));
-
-			const selected = await searchableSelect<string>(
-				ctx,
-				"Select Permission Mode",
-				items,
-			);
-
-			if (selected) {
-				ctx.ui.setEditorText(`/mode ${selected}`);
-				setTimeout(() => process.stdin.emit("data", "\r"), 0);
-			}
-		},
-	});
-
-	// ── Extension commands (auto-discovered, searchable picker) ─────────
-	const commands = pi.getCommands();
-	const extCommands = commands.filter((c) => c.source === "extension");
-
-	const builtinCommandNames = new Set([
-		"new", "resume", "tree", "fork", "compact",
-		"model", "thinking", "tools", "reload",
-		"switch", "lk", "leader-key",
-		"mode", "permissions",
-		"lk-navigate", "lk-switch", // internal bridge commands
-	]);
-
-	const customCommands = extCommands.filter((c) => !builtinCommandNames.has(c.name));
-
-	if (customCommands.length > 0) {
-		entries.push({
+	return [
+		{
 			type: "action",
-			key: "e",
-			label: "Extensions",
-			description: `${customCommands.length} command${customCommands.length !== 1 ? "s" : ""}`,
-			action: async (ctx) => {
-				const items = customCommands.map((cmd) => ({
-					value: cmd.name,
-					label: cmd.name,
-					description: cmd.description || "extension",
-				}));
-
-				const selected = await searchableSelect<string>(
-					ctx,
-					"Select Extension Command",
-					items,
-				);
-
-				if (selected) {
-					pi.sendUserMessage(`/${selected}`);
-				}
+			key: "m",
+			label: "Models",
+			description: "switch scoped model",
+			action: openFavouriteModels,
+		},
+		buildWorkflowEntries(pi),
+		{
+			type: "group",
+			group: {
+				key: "p",
+				label: "Plannotator",
+				items: [
+					{
+						key: "a",
+						label: "Annotate last",
+						description: "annotate last assistant message",
+						action: (ctx) => runCommand(ctx, "/plannotator-last"),
+					},
+					{
+						key: "r",
+						label: "Review changes",
+						description: "review current code changes",
+						action: (ctx) => runCommand(ctx, "/plannotator-review"),
+					},
+					{
+						key: "f",
+						label: "Annotate file",
+						description: "file, folder, or URL",
+						action: async (ctx) => {
+							const path = await ctx.ui.input("Annotate file, folder, or URL", "path or URL");
+							if (path?.trim()) runCommand(ctx, `/plannotator-annotate ${path.trim()}`);
+						},
+					},
+				],
 			},
-		});
-	}
-
-	// ── Skills ──────────────────────────────────────────────────────────
-	const skillCommands = commands.filter((c) => c.source === "skill");
-
-	if (skillCommands.length > 0) {
-		entries.push({
+		},
+		{
 			type: "action",
-			key: "k",
-			label: "Skills",
-			description: `${skillCommands.length} skill${skillCommands.length !== 1 ? "s" : ""}`,
-			action: async (ctx) => {
-				const items = skillCommands.map((cmd) => ({
-					value: cmd.name,
-					label: cmd.name,
-					description: cmd.description || "skill",
-				}));
-
-				const selected = await searchableSelect<string>(
-					ctx,
-					"Select Skill",
-					items,
-				);
-
-				if (selected) {
-					ctx.ui.setEditorText(`/${selected} `);
-					ctx.ui.notify(`Type your prompt after /${selected}`, "info");
-				}
-			},
-		});
-	}
-
-	// ── Contracts (wf pipeline) ─────────────────────────────────────────
-	entries.push(buildWorkflowEntries(pi));
-
-	// ── Review / Annotate ───────────────────────────────────────────────
-	entries.push({
-		type: "action",
-		key: "r",
-		label: "Review",
-		description: "code review UI",
-		action: (ctx) => {
-			ctx.ui.setEditorText("/plannotator-review");
-			setTimeout(() => process.stdin.emit("data", "\r"), 0);
+			key: "t",
+			label: "Tree",
+			description: "open native session tree",
+			action: (ctx) => runCommand(ctx, "/tree"),
 		},
-	});
-
-	entries.push({
-		type: "action",
-		key: "a",
-		label: "Annotate last",
-		description: "annotate last assistant message",
-		action: (ctx) => {
-			ctx.ui.setEditorText("/plannotator-last");
-			setTimeout(() => process.stdin.emit("data", "\r"), 0);
+		{
+			type: "action",
+			key: "q",
+			label: "Quit",
+			description: "quit pi",
+			action: (ctx) => ctx.shutdown(),
 		},
-	});
-
-	// ── Copy last response ──────────────────────────────────────────────
-	entries.push({
-		type: "action",
-		key: "y",
-		label: "Copy last response",
-		description: "copy assistant message to clipboard",
-		action: (ctx: ExtensionContext) => {
-			const entries = ctx.sessionManager.getEntries();
-			for (let i = entries.length - 1; i >= 0; i--) {
-				const e = entries[i];
-				if (e.type === "message" && (e.message as any).role === "assistant") {
-					const content = (e.message as any).content;
-					const textParts: string[] = [];
-					if (Array.isArray(content)) {
-						for (const block of content) {
-							if (block.type === "text" && block.text) textParts.push(block.text);
-						}
-					}
-					const text = textParts.join("\n");
-					if (text) {
-						if (copyToClipboard(text)) {
-							ctx.ui.notify(`Copied (${text.length} chars)`, "info");
-						} else {
-							ctx.ui.notify("Clipboard copy failed", "error");
-						}
-					} else {
-						ctx.ui.notify("Last response has no text content", "info");
-					}
-					return;
-				}
-			}
-			ctx.ui.notify("No assistant message found", "info");
-		},
-	});
-
-	// ── Exit ─────────────────────────────────────────────────────────────
-	entries.push({
-		type: "action",
-		key: "q",
-		label: "Exit",
-		description: "quit pi",
-		action: (ctx) => {
-			ctx.ui.setEditorText("/quit");
-			setTimeout(() => process.stdin.emit("data", "\r"), 0);
-		},
-	});
-
-	return entries;
+	];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -454,9 +313,6 @@ class LeaderKeyOverlay {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default function leaderKeyExtension(pi: ExtensionAPI) {
-	// Register internal commands that bridge shortcut→command context
-	registerBridgeCommands(pi);
-
 	let stopFavouriteModelsShortcut: (() => void) | undefined;
 	let favouriteModelsOpen = false;
 
@@ -474,7 +330,7 @@ export default function leaderKeyExtension(pi: ExtensionAPI) {
 	async function openLeaderKey(ctx: ExtensionContext) {
 		if (!ctx.hasUI) return;
 
-		const entries = buildEntries(pi, ctx, openFavouriteModels);
+		const entries = buildEntries(pi, openFavouriteModels);
 
 		const selected = await ctx.ui.custom<ActionItem | null>(
 			(tui, theme, _kb, done) => {
