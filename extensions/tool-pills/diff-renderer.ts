@@ -15,7 +15,6 @@ import { extname, relative } from "node:path";
 
 import { createWriteTool, createEditTool, keyHint } from "@mariozechner/pi-coding-agent";
 import { Text } from "@mariozechner/pi-tui";
-import { codeToANSI } from "@shikijs/cli";
 import { pill } from "./pill.js";
 import * as Diff from "diff";
 import type { BundledLanguage, BundledTheme } from "shiki";
@@ -643,10 +642,14 @@ function lang(fp: string): BundledLanguage | undefined {
 }
 
 // ---------------------------------------------------------------------------
-// Shiki ANSI cache + pre-warm
+// Shiki ANSI cache
 // ---------------------------------------------------------------------------
 
-codeToANSI("", "typescript", THEME).catch(() => {});
+let codeToAnsiPromise: Promise<typeof import("@shikijs/cli")["codeToANSI"]> | undefined;
+
+function getCodeToAnsi() {
+	return (codeToAnsiPromise ??= import("@shikijs/cli").then(({ codeToANSI }) => codeToANSI));
+}
 
 const _cache = new Map<string, string[]>();
 
@@ -670,6 +673,7 @@ async function hlBlock(code: string, language: BundledLanguage | undefined): Pro
 	if (hit) return _touch(k, hit);
 
 	try {
+		const codeToANSI = await getCodeToAnsi();
 		const ansi = normalizeShikiContrast(await codeToANSI(code, language, THEME));
 		const out = (ansi.endsWith("\n") ? ansi.slice(0, -1) : ansi).split("\n");
 		return _touch(k, out);
@@ -1200,14 +1204,18 @@ export function registerDiffTools(pi: any): void {
 
 			// Create preview: syntax-highlight new file content
 			if (args?.content && ctx.argsComplete && isNew) {
-				const previewKey = `create:${fp}:${String(args.content).length}:${ctx.expanded}`;
-				if (ctx.state._previewKey !== previewKey) {
+				const previewKey = `create:${fp}:${ctx.expanded}`;
+				const previewContent = String(args.content);
+				if (ctx.state._previewKey !== previewKey || ctx.state._previewContent !== previewContent) {
 					ctx.state._previewKey = previewKey;
+					ctx.state._previewContent = previewContent;
+					const previewGeneration = (ctx.state._previewGeneration ?? 0) + 1;
+					ctx.state._previewGeneration = previewGeneration;
 					ctx.state._previewText = hdr;
 					const lg = lang(fp);
-					hlBlock(args.content, lg)
+					hlBlock(previewContent, lg)
 						.then((lines: string[]) => {
-							if (ctx.state._previewKey !== previewKey) return;
+							if (ctx.state._previewGeneration !== previewGeneration) return;
 							const maxShow = ctx.expanded ? lines.length : COLLAPSED_NEW_FILE_LINES;
 							const preview = lines.slice(0, maxShow).join("\n");
 							const rem = lines.length - maxShow;
@@ -1217,8 +1225,9 @@ export function registerDiffTools(pi: any): void {
 							ctx.invalidate();
 						})
 						.catch(() => {
+							if (ctx.state._previewGeneration !== previewGeneration) return;
 							// Fallback: show plain content
-							const lines = args.content.split("\n");
+							const lines = previewContent.split("\n");
 							const maxShow = ctx.expanded ? lines.length : COLLAPSED_NEW_FILE_LINES;
 							const preview = lines.slice(0, maxShow).join("\n");
 							const rem = lines.length - maxShow;
