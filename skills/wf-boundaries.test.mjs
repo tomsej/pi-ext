@@ -88,6 +88,17 @@ test("wf puts the business summary immediately after the current state", () => {
 	);
 });
 
+test("wf and wf-explain require concise STE-inspired Czech prose", () => {
+	for (const name of ["wf", "wf-explain"]) {
+		const body = skill(name);
+		assert.match(body, /^- Používej jeden název[^.\n]*jednu věc/im, `${name} permits terminology drift`);
+		assert.match(body, /^- Piš aktivně[^.\n]*běžná slova/im, `${name} does not require plain active prose`);
+		assert.match(body, /^- Jedna (věta|odrážka)[^.\n]*jednu hlavní myšlenku/im, `${name} permits overloaded prose`);
+		assert.match(body, /^- Vynech[^.\n]*výplňové úvodní fráze[^.\n]*opakování[^.\n]*marketingová přídavná jména/im);
+		assert.match(body, /^- Stručnost nesmí odstranit[^.\n]*podmínk[^.\n]*hrani[^.\n]*pozorovatelné chování/im);
+	}
+});
+
 test("the roster documented in wf is the roster wf-gate resolves", () => {
 	// Matches any `name` harness/model mention, so the docs can be a table, a
 	// list or one dense line — the test pins the facts, not the layout.

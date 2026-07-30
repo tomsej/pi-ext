@@ -20,6 +20,14 @@ CELÝ VÝSTUP JE ČESKY.
   kontraktu z diffu). Kritérium bez důkazu dostane viditelné ⚠️ — důkazy nikdy
   nevymýšlej.
 
+## Styl
+
+- Používej jeden název pro jednu věc.
+- Piš aktivně a používej krátká běžná slova.
+- Jedna věta nebo odrážka obsahuje jednu hlavní myšlenku.
+- Vynech výplňové úvodní fráze, opakování a marketingová přídavná jména.
+- Stručnost nesmí odstranit podmínku, hranici ani pozorovatelné chování.
+
 ## Sekce (v tomhle pořadí)
 
 - **Pozadí** — jak dnes funguje část systému, které se změna týká. Dvě hloubky:

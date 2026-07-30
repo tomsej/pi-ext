@@ -19,6 +19,14 @@ záměrně: kontrakt se nesmí objevit v žádném commitu ani PR diffu.
 
 Co zjistíš z repa, zjisti z repa; na zbytek se doptej, nehádej.
 
+### Styl
+
+- Používej jeden název pro jednu věc.
+- Piš aktivně a používej krátká běžná slova.
+- Jedna věta nebo odrážka obsahuje jednu hlavní myšlenku.
+- Vynech výplňové úvodní fráze, opakování a marketingová přídavná jména.
+- Stručnost nesmí odstranit podmínku, hranici ani pozorovatelné chování.
+
 - **Současné chování / reprodukce:** jak to funguje teď; u bugu přesná reprodukce
 - **Business shrnutí:** 2–4 věty pro netechnického čtenáře — stane se z toho
   anglická sekce „Why" v PR
