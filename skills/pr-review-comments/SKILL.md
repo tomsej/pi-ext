@@ -1,6 +1,7 @@
 ---
 name: pr-review-comments
 description: "Review, triage, and resolve PR review comments. Use when user asks to check PR comments, address review feedback, fix issues raised in review, reply to reviewers, or resolve review threads."
+disable-model-invocation: true
 ---
 
 # PR Review Comments

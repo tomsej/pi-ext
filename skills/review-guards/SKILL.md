@@ -1,6 +1,7 @@
 ---
 name: review-guards
 description: Codify project review rules as deterministic guards — ast-grep structural rules (with TDD-style rule tests) for mechanical checks, REVIEW_GUIDELINES.md for qualitative ones, wired into the project gate / wf verify. Use when the user wants to define review rules, turn a repeated review finding into a lint/guard, or set up ast-grep in a project.
+disable-model-invocation: true
 ---
 
 # /review-guards — turn review rules into guards
