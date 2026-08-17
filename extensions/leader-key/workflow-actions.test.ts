@@ -11,7 +11,13 @@ const keys = (entries: ReturnType<typeof buildEntries>) => entries.map((entry) =
 
 test("the leader palette only exposes frequent actions", () => {
 	const entries = buildEntries({} as never, async () => {});
-	expect(keys(entries)).toEqual(["m", "c", "p", "t", "q"]);
+	expect(keys(entries)).toEqual(["m", "c", "a", "p", "t", "q"]);
+
+	const agents = entries.find((entry) => entry.type === "group" && entry.group.key === "a");
+	expect(agents?.type).toBe("group");
+	if (agents?.type === "group") {
+		expect(agents.group.items.map((item) => item.key)).toEqual(["s", "p"]);
+	}
 
 	const plannotator = entries.find((entry) => entry.type === "group" && entry.group.key === "p");
 	expect(plannotator?.type).toBe("group");
@@ -34,6 +40,12 @@ test("leader actions launch their native commands and quit directly", async () =
 	const stdinEmit = spyOn(process.stdin, "emit").mockImplementation(() => true);
 
 	try {
+		const agents = entries.find((entry) => entry.type === "group" && entry.group.key === "a");
+		if (agents?.type !== "group") throw new Error("Agents group missing");
+		for (const key of ["s", "p"]) {
+			await agents.group.items.find((item) => item.key === key)?.action(ctx);
+		}
+
 		const plannotator = entries.find((entry) => entry.type === "group" && entry.group.key === "p");
 		if (plannotator?.type !== "group") throw new Error("Plannotator group missing");
 		for (const key of ["a", "r", "f"]) {
@@ -47,6 +59,8 @@ test("leader actions launch their native commands and quit directly", async () =
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		expect(setEditorText.mock.calls.map(([command]) => command)).toEqual([
+			"/subagents",
+			"/ps",
 			"/plannotator-last",
 			"/plannotator-review",
 			"/plannotator-annotate docs/my plan.md",

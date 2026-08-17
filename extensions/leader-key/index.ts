@@ -52,6 +52,27 @@ export function buildEntries(
 		{
 			type: "group",
 			group: {
+				key: "a",
+				label: "Agents",
+				items: [
+					{
+						key: "s",
+						label: "Subagents",
+						description: "open the subagents panel",
+						action: (ctx) => runCommand(ctx, "/subagents"),
+					},
+					{
+						key: "p",
+						label: "Processes",
+						description: "show running processes",
+						action: (ctx) => runCommand(ctx, "/ps"),
+					},
+				],
+			},
+		},
+		{
+			type: "group",
+			group: {
 				key: "p",
 				label: "Plannotator",
 				items: [
