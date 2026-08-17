@@ -9,9 +9,8 @@
 //
 // It enforces deterministically what the wf-impl skill promises:
 //   - `gh pr create` requires a receipt trail in <repo>/.wf/receipts.jsonl:
-//       1. a passing FULL wf-gate verify for the active spec,
-//       2. a passing verify at the CURRENT clean HEAD (quick or full),
-//       3. a review attest at the CURRENT HEAD.
+//       1. a passing FULL wf-gate verify at the CURRENT clean HEAD,
+//       2. a review attest at the CURRENT HEAD.
 //   - `gh pr merge` is never allowed from a wf-conducted worktree.
 // Repos without .wf/active (anything not driven by wf-impl) are untouched.
 import { readFileSync, existsSync } from 'node:fs'
@@ -54,9 +53,29 @@ export function guardedVerb(command) {
   return null
 }
 
-/** True for the two commands the endgame guard cares about. */
+function isDirectFullGate(command) {
+  for (const segment of String(command ?? '').split(/&&|\|\||[;\n|]/)) {
+    const tokens = segment.trim().split(/\s+/).filter(Boolean)
+    while (/^[A-Za-z_]\w*=/.test(tokens[0] ?? '')) tokens.shift()
+    if (tokens[0] === 'env') {
+      tokens.shift()
+      while (/^[A-Za-z_]\w*=/.test(tokens[0] ?? '')) tokens.shift()
+    }
+    if (tokens[0] === 'bash') tokens.shift()
+    if (tokens[0] === 'just' && tokens[1] === 'gate' && tokens[2]) {
+      if (tokens[3] == null || tokens[3] === 'full' || tokens[3].startsWith('#')) return true
+      continue
+    }
+    if ((tokens[0] ?? '').endsWith('/scripts/gate.sh') || tokens[0] === 'scripts/gate.sh') {
+      if (tokens[1] && (tokens[2] == null || tokens[2] === 'full' || tokens[2].startsWith('#'))) return true
+    }
+  }
+  return false
+}
+
+/** True for commands the workflow guard cares about. */
 export function isGuardedCommand(command) {
-  return guardedVerb(command) !== null
+  return guardedVerb(command) !== null || isDirectFullGate(command)
 }
 
 /**
@@ -65,7 +84,8 @@ export function isGuardedCommand(command) {
  */
 export function guard(command, cwd = process.cwd()) {
   const verb = guardedVerb(command)
-  if (!verb) return null
+  const directFull = isDirectFullGate(command)
+  if (!verb && !directFull) return null
 
   let root
   try {
@@ -77,6 +97,10 @@ export function guard(command, cwd = process.cwd()) {
   const activeFile = join(root, '.wf', 'active')
   if (!existsSync(activeFile)) return null // not a wf-conducted worktree
   const active = readFileSync(activeFile, 'utf8').trim()
+
+  if (directFull) {
+    return `direct full gates bypass the workflow lock and receipts. Run \`wf-gate verify ${active} full\` instead.`
+  }
 
   if (verb === 'merge') {
     return `this worktree is conducted by wf-impl for ${active} and must never merge. Merging is the user's decision.`
@@ -91,15 +115,13 @@ export function guard(command, cwd = process.cwd()) {
 
   const head = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).trim()
   const dirty = execFileSync('git', ['status', '--porcelain'], { cwd: root, encoding: 'utf8' }).trim().length > 0
-  if (dirty) return `working tree has uncommitted changes — commit them, rerun \`wf-gate verify ${active} quick\`, attest review, then create the PR.`
+  if (dirty) return `working tree has uncommitted changes — commit them, finish review, rerun \`wf-gate verify ${active} full\`, attest review, then create the PR.`
 
   const ok = r => r.result === 'pass' || r.result === 'pass-with-warnings'
-  const fullPassed = forSpec.some(r => r.type === 'verify' && r.mode === 'full' && ok(r))
-  const verifiedAtHead = forSpec.some(r => r.type === 'verify' && ok(r) && r.head === head && r.dirty === false)
+  const fullPassedAtHead = forSpec.some(r => r.type === 'verify' && r.mode === 'full' && ok(r) && r.head === head && r.dirty === false)
   const attestedAtHead = forSpec.some(r => r.type === 'attest' && r.phase === 'review' && r.head === head)
 
-  if (!fullPassed) return `no passing FULL verify recorded for ${active}. Run \`wf-gate verify ${active} full\` (phase 2) before creating a PR.`
-  if (!verifiedAtHead) return `the last passing verify is stale — it was recorded at a different HEAD than ${head.slice(0, 10)}. Rerun \`wf-gate verify ${active} quick\` on the current commit.`
+  if (!fullPassedAtHead) return `the passing FULL verify is missing or stale for HEAD ${head.slice(0, 10)}. Run \`wf-gate verify ${active} full\` on the current clean commit.`
   if (!attestedAtHead) return `review is not attested at the current HEAD. Finish the wf-review rounds, then run \`wf-gate attest review ${active}\`.`
 
   return null

@@ -15,11 +15,21 @@ const yaml = createRequire(import.meta.url)("js-yaml");
 const skill = (name) => readFileSync(new URL(`./${name}/SKILL.md`, import.meta.url), "utf8");
 const GATE = new URL("../wf/wf-gate.mjs", import.meta.url).pathname;
 
-const SKILLS = ["wf", "wf-run", "wf-impl", "wf-review", "wf-uat", "wf-explain", "wf-status"];
+const SKILLS = ["wf", "wf-run", "wf-impl", "wf-review", "wf-uat", "wf-explain", "pr-explain", "wf-status", "wf-quick"];
+const MANUAL_ONLY_SKILLS = [...SKILLS, "pr-review-comments", "review-guards"];
 const wf = skill("wf");
 const wfRun = skill("wf-run");
 const wfImpl = skill("wf-impl");
 const wfReview = skill("wf-review");
+
+// A skill directory that is not registered in package.json pi.skills never
+// reaches the prompt — it fails silently, exactly like invalid frontmatter.
+test("every wf skill is registered in package.json pi.skills", () => {
+	const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+	for (const name of SKILLS) {
+		assert.ok(pkg.pi.skills.includes(`./skills/${name}`), `${name} is missing from pi.skills`);
+	}
+});
 
 // ── the deterministic core must be reachable from every skill that claims it ──
 
@@ -27,7 +37,9 @@ test("wf-gate exists at the path the skills hand to the model", () => {
 	assert.ok(existsSync(GATE), `${GATE} is missing`);
 	for (const name of SKILLS) {
 		const body = skill(name);
-		if (!body.includes("wf-gate")) continue;
+		// Only skills that actually invoke the gate must carry the full path;
+		// mentioning wf-gate in prose („žádný wf-gate") is fine without it.
+		if (!body.includes("wf-gate.mjs")) continue;
 		assert.match(body, /node ~\/Workspace\/pi-ext\/wf\/wf-gate\.mjs/, `${name} names a stale wf-gate path`);
 		assert.doesNotMatch(body, /\.claude\/wf/, `${name} still points at the Claude Code copy`);
 	}
@@ -35,8 +47,8 @@ test("wf-gate exists at the path the skills hand to the model", () => {
 
 // Parsed, not regexed: an unquoted "key: value" inside a description is
 // invalid YAML and pi drops the whole skill — silently, mid-pipeline.
-test("every wf skill has parsable frontmatter with a matching name and a description", () => {
-	for (const name of SKILLS) {
+test("explicit workflows have parsable manual-only frontmatter", () => {
+	for (const name of MANUAL_ONLY_SKILLS) {
 		const fm = skill(name).match(/^---\n([\s\S]*?)\n---/);
 		assert.ok(fm, `${name} has no frontmatter`);
 		let parsed;
@@ -45,6 +57,7 @@ test("every wf skill has parsable frontmatter with a matching name and a descrip
 		}, `${name} frontmatter is not valid YAML — pi will not load the skill`);
 		assert.equal(parsed.name, name, `${name} frontmatter name mismatch`);
 		assert.ok(parsed.description?.trim(), `${name} has no description`);
+		assert.equal(parsed["disable-model-invocation"], true, `${name} must be manual-only`);
 	}
 });
 
@@ -141,6 +154,17 @@ test("every skill points at the per-contract directory layout", () => {
 	assert.match(wf, /<název>\/contract\.md/); // the contract file inside its directory
 });
 
+test("wf-explain takes a PR as input without mutating the checkout", () => {
+	const explain = skill("wf-explain");
+	assert.match(explain, /gh pr view/, "no PR metadata source");
+	assert.match(explain, /gh pr diff/, "no PR diff source");
+	assert.match(explain, /pull\/<n>\/head/, "no read-only access to the PR head");
+	assert.doesNotMatch(explain, /gh pr checkout/, "checkout would clobber local work");
+	// Every explanation lands under the same specs root as contract artifacts.
+	assert.match(explain, /specs\/<projekt>\/pr-<n>/, "PR explain does not land under specs");
+	assert.doesNotMatch(explain, /Workspace\/diffs/, "a second output root defeats one-place discovery");
+});
+
 test("wf-explain writes markdown next to the contract, not a bundled HTML page", () => {
 	const explain = skill("wf-explain");
 	assert.match(explain, /explanation\.md/);
@@ -149,6 +173,44 @@ test("wf-explain writes markdown next to the contract, not a bundled HTML page",
 	assert.match(explain, /mermaid/); // diagrams the viewer renders
 	assert.match(explain, /<details>/); // quiz answers stay hidden until opened
 	assert.match(explain, /- \[ \]/); // checkable UAT steps
+});
+
+test("wf-explain progressively connects intuition to linked code steps", () => {
+	const explain = skill("wf-explain");
+	const background = explain.indexOf("**Pozadí**");
+	const intuition = explain.indexOf("**Intuice**");
+	const map = explain.indexOf("**Změna shora dolů**");
+	const criteria = explain.indexOf("**Akceptační kritéria");
+	assert.ok(background < intuition && intuition < map && map < criteria, "expected background → intuition → change map → evidence");
+	assert.doesNotMatch(explain, /\*\*Kód\*\*/, "the change map replaces the duplicate code section");
+	assert.match(explain, /<code>PRINCIPLE<\/code>.*<code>FLOW<\/code>.*<code>STEP<\/code>.*<code>KEPT<\/code>.*<code>VERIFY<\/code>/s);
+	assert.doesNotMatch(explain, /🟪|🟦|⬜|✅/, "map badges should stay visually quiet");
+	assert.match(explain, /🟡[^\n]*<code>MODIFIED<\/code>[^\n]*🟢[^\n]*<code>NEW<\/code>/, "file status needs only a small color cue");
+	assert.match(explain, /soubor[^\n]*odkaz[^\n]*#L/i, "source links must target exact lines");
+	assert.match(explain, /<a href="<diff-url>"><code>MODIFIED<\/code><\/a>/, "the quiet colored label should link to the diff");
+	assert.doesNotMatch(explain, /diff ↗/, "a second link to the same diff is redundant");
+	assert.match(explain, /blok[^\n]*jazyk/i, "snippets must use the source language");
+	assert.doesNotMatch(explain, /```diff/, "readers need code, not raw diff headers");
+	assert.match(explain, /<details><summary>Odpověď<\/summary><p><strong>/, "quiz answer must render markdown semantics inside raw HTML");
+	const lines = explain.trimEnd().split("\n").length;
+	assert.ok(lines >= 45 && lines <= 60, `wf-explain should stay at 45–60 lines, got ${lines}`);
+});
+
+test("pr-explain turns one PR into a compact linked Plannotator explanation", () => {
+	const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8"));
+	assert.ok(pkg.pi.skills.includes("./skills/pr-explain"), "pr-explain is not registered");
+	const explain = skill("pr-explain");
+	assert.match(explain, /gh pr view/);
+	assert.match(explain, /gh pr diff/);
+	assert.match(explain, /gh pr checks/);
+	assert.match(explain, /pull\/<n>\/head/);
+	assert.doesNotMatch(explain, /gh pr checkout/);
+	assert.match(explain, /<a href="<diff-url>"><code>MODIFIED<\/code><\/a>/);
+	assert.match(explain, /blob\/<sha>\/<path>#Lx-Ly/);
+	assert.match(explain, /language of the source file/i);
+	assert.match(explain, /share\.plannotator\.ai/);
+	assert.match(explain, /pr-<n>-<slug>\/explanation\.md/);
+	assert.ok(explain.trimEnd().split("\n").length <= 50, "pr-explain must stay at 50 lines or fewer");
 });
 
 // ── /wf-run — launcher, never an implementer ─────────────────────────────────
@@ -162,6 +224,14 @@ test("wf-run launches pi conductors and never a Claude session", () => {
 test("wf-run asks before launching and never implements", () => {
 	assert.match(wfRun, /ZEPTEJ|zeptej/); // the user picks what launches
 	assert.ok(forbids(wfRun, "nespouštěj nic") || /neimplementuješ/.test(wfRun), "wf-run does not rule out implementing");
+});
+
+test("wf-run atomically claims a contract and never blindly retries a timed-out create", () => {
+	const claim = wfRun.indexOf("GATE claim");
+	const create = wfRun.indexOf("sc worktree create --from-file");
+	assert.ok(claim !== -1 && claim < create, "wf-run must claim before create");
+	assert.match(wfRun.replace(/\s+/g, " "), /timeout.*nikdy.*opak|timeout.*neopak/i);
+	assert.match(wfRun, /launching|duplicate/);
 });
 
 // ── /wf-impl — conductor boundaries ─────────────────────────────────────────
@@ -192,6 +262,16 @@ test("wf-impl gates phase transitions on wf-gate, not on agent claims", () => {
 	assert.match(wfImpl, /GATE begin SPEC/);
 });
 
+test("wf-impl reviews before one final full gate and explains only after PR stabilization", () => {
+	const review = wfImpl.indexOf("## Fáze 2 — review");
+	const full = wfImpl.indexOf("## Fáze 3 — finální full gate");
+	const ship = wfImpl.indexOf("## Fáze 4 — ship");
+	assert.ok(review !== -1 && review < full && full < ship, "expected review → final full → ship");
+	const flat = wfImpl.replace(/\s+/g, " ");
+	assert.match(flat, /nikdy.*just gate.*full/i);
+	assert.match(flat, /CI.*komentář.*UAT.*explain/i);
+});
+
 test("wf-impl satisfies the endgame guard rather than working around it", () => {
 	assert.match(wfImpl, /neobcházej|neválči/);
 	assert.match(wfImpl, /<!-- wf-spec: <name> -->/); // status discovery marker
@@ -209,25 +289,35 @@ test("wf-impl delegates implementation through the one spawn mechanism", () => {
 
 // ── /wf-review — the cross-model guarantee lives here ────────────────────────
 
+test("wf-review chooses the smallest cross-model panel from standalone diff risk", () => {
+	const flat = wfReview.replace(/\s+/g, " ");
+	assert.match(flat, /Argument: optional/i);
+	assert.match(flat, /Without (a )?contract.*diff/i);
+	assert.match(flat, /docs.*1 reviewer.*behavior.*2 reviewers.*security.*3 reviewers/i);
+	assert.match(flat, /PI_PROVIDER.*PI_MODEL/);
+	assert.match(flat, /Without (a )?contract.*GATE agents.*verify.*do not run/i);
+});
+
 test("wf-review spawns the contract's panel in parallel with fresh contexts", () => {
 	assert.match(wfReview, /GATE agents <spec> --json/);
 	assert.match(wfReview, /subagent_spawn/);
-	assert.match(wfReview, /PARALELNĚ/);
-	assert.match(wfReview.replace(/\s+/g, " "), /nikdy je nesesypej na jeden model/); // the cross-model guarantee
+	assert.match(wfReview, /IN PARALLEL/);
+	assert.match(wfReview.replace(/\s+/g, " "), /never collapse them onto one model/); // the cross-model guarantee
 });
 
 test("wf-review sends claude reviewers through the native /code-review command", () => {
 	const flat = wfReview.replace(/\s+/g, " ");
-	assert.match(flat, /harnessem \*\*claude\*\*: prompt MUS\u00cd za\u010d\u00ednat `\/code-review`/);
-	assert.match(flat, /codex by `\/review` dostal jako prost\u00fd text/);
-	assert.match(flat, /harnessem \*\*pi\*\*:.*sem_impact.*sem_context/);
+	assert.match(flat, /with \*\*claude\*\* harness: the prompt MUST start with `\/code-review`/);
+	assert.match(flat, /codex would treat `\/review` as plain text/);
+	assert.match(flat, /with \*\*pi\*\* harness:.*sem_impact.*sem_context/);
 });
 
-test("wf-review attests only after a passing quick gate, and never to bypass", () => {
-	assert.match(wfReview, /GATE verify <spec> quick/);
-	assert.match(wfReview, /GATE attest review <spec>/);
-	assert.match(wfReview, /NEATTESTUJ/);
-	assert.match(wfReview, /max 2|max 2 kola|Kola — max 2/);
+test("wf-review passes only after quick gate and leaves attest to the final full phase", () => {
+	const flat = wfReview.replace(/\s+/g, " ");
+	assert.match(flat, /GATE verify <spec> quick/);
+	assert.match(flat, /wf-impl creates the review attest only after/i);
+	assert.match(flat, /never create it here/i);
+	assert.match(flat, /max 2 rounds/);
 });
 
 // The codex harness has no guard of its own (pi has the extension, Claude the
@@ -245,6 +335,37 @@ test("delegating skills forbid the endgame to every delegated agent", () => {
 
 test("wf-review treats findings as claims and owns the fixes", () => {
 	const flat = wfReview.replace(/\s+/g, " ");
-	assert.match(flat, /nálezy jsou tvrzení|nálezy jsou TVRZENÍ/i);
-	assert.match(flat, /revieweři jen reportují/);
+	assert.match(flat, /findings are CLAIMS/i);
+	assert.match(flat, /reviewers only report/);
+});
+
+test("wf-review persists complete reports and bounds each fix batch", () => {
+	const flat = wfReview.replace(/\s+/g, " ");
+	assert.match(flat, /\.wf\/reviews/);
+	assert.match(flat, /3–5|3-5/);
+	assert.match(flat, /only one agent may edit/i);
+});
+
+// ── /wf-quick — small tasks without the ceremony ─────────────────────────
+
+test("wf-quick escalates oversized or risky tasks to the full contract flow", () => {
+	const q = skill("wf-quick");
+	assert.match(q, /skill `wf`/, "no escalation target");
+	assert.match(q.replace(/\s+/g, " "), /víc než 3|> ?3/i, "no criteria limit");
+	assert.match(q, /migrace|auth|security/i, "risk triggers not named");
+});
+
+test("wf-quick ships a draft PR, never merges, and always ends with explain", () => {
+	const q = skill("wf-quick");
+	assert.match(q, /gh pr create --draft/);
+	assert.ok(forbids(q, "gh pr merge") || forbids(q, "nemerguj"), "wf-quick does not forbid merging");
+	assert.match(q, /skill `wf-explain`/, "explain is not part of the endgame");
+});
+
+test("wf-quick works test-first with a risk-based cross-model reviewer", () => {
+	const q = skill("wf-quick");
+	assert.match(q, /skill `tdd`/, "no TDD anchor");
+	assert.match(q, /subagent_spawn/, "no reviewer delegation mechanism");
+	// [\wà-ž] — plain \w misses Czech diacritics („jiným").
+	assert.match(q.replace(/\s+/g, " "), /jin[\wà-ž]+ (model|harness)/i, "reviewer is not cross-model");
 });

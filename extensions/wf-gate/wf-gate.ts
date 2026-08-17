@@ -2,8 +2,8 @@
  * wf-gate Extension — endgame guard for contract-driven workflows.
  *
  * A worktree conducted by the wf-impl skill may only open its PR once
- * <repo>/.wf/receipts.jsonl proves a passing full gate, a passing verify at
- * the current clean HEAD, and a review attest at that HEAD; it may never
+ * <repo>/.wf/receipts.jsonl proves a passing full gate and review attest at
+ * the current clean HEAD; it may never
  * merge. The decision lives in wf/wf-hook.mjs (shared with the Claude Code
  * PreToolUse hook, so delegated Claude subagents obey the same rules) — this
  * file is only the wiring that turns a block into a reason the model reads.
@@ -27,11 +27,12 @@ export default function (pi: ExtensionAPI) {
 		// Any tool that runs a shell command, not just `bash`: bg_start and other
 		// command runners would otherwise be an open side door around the guard.
 		const command = (event.input as { command?: unknown }).command;
-		if (typeof command !== "string" || !command.includes("gh")) return;
+		if (typeof command !== "string" || (!command.includes("gh") && !command.includes("gate"))) return;
 
-		// Imported on first `gh pr` call only: unrelated bash must not pay for it.
+		// Imported only for likely guarded commands: unrelated shell calls pay nothing.
 		hook ??= import(HOOK_URL) as Promise<Hook>;
-		const { guard } = await hook;
+		const { isGuardedCommand, guard } = await hook;
+		if (!isGuardedCommand(command)) return;
 		const reason = guard(command, ctx.cwd);
 		if (reason) return { block: true, reason: `wf-gate: BLOCKED — ${reason}` };
 	});

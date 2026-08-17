@@ -1,62 +1,56 @@
 ---
 name: wf-explain
-description: Bohaté české vysvětlení změny kódu (kontrakt/diff/branch/PR) jako markdown — pozadí, intuice, průchod kódem, mermaid diagramy, tabulka kritérií, zaškrtávatelné UAT kroky, kvíz. Volá wf-impl po UAT, nebo ruční spuštění se spec cestou, ref range či číslem PR.
+description: České vysvětlení změny kódu z kontraktu, ref range nebo PR — pozadí, intuice, průchod kódem, důkazy, UAT a kvíz. Volá wf-impl po UAT nebo uživatel ručně.
+disable-model-invocation: true
 ---
 
 # /wf-explain — vysvětli změnu
 
-Vstup: cesta ke `contract.md` (diff = target branch...HEAD), ref range, nebo
-číslo PR. Vůči repozitáři jen pro čtení. Než začneš psát, prozkoumej okolí kódu —
-vysvětlení musí odpovídat reálnému systému, ne jen diffu.
+CELÝ VÝSTUP JE ČESKY. Repozitář jen čti a před psaním prozkoumej okolí změny.
 
-CELÝ VÝSTUP JE ČESKY.
-
-## Dva režimy
-
-- **Pipeline** (volá wf-impl s kontraktem): dostaneš gate report a wf-uat report.
-  Důkazy ke kritériím i ruční kroky ber z nich, neodvozuj je znovu.
-- **Standalone** (ref range, PR, nebo kontrakt, který si otevřeš sám): kritéria
-  naváž na testy viditelné v diffu, UAT kroky odvoď z UAT sekce kontraktu (bez
-  kontraktu z diffu). Kritérium bez důkazu dostane viditelné ⚠️ — důkazy nikdy
-  nevymýšlej.
+## Vstup a důkazy
+Vstup: `contract.md` (target branch...HEAD), ref range, číslo nebo URL PR.
+- **Pipeline:** důkazy a kroky převezmi z gate a wf-uat reportu.
+- **Standalone:** kritéria spoj s testy v diffu a UAT s kontraktem; bez důkazu použij ⚠️.
+- **PR:** `gh pr view <n> --json title,body,baseRefName,url`, `gh pr diff <n>`, `gh pr checks <n>`.
+- HEAD PR čti bez checkoutu: `git fetch origin pull/<n>/head`; soubory přes `git show FETCH_HEAD:<cesta>`.
+- Tvrzení z PR popisu potvrď diffem, testem nebo CI; nic nevymýšlej.
 
 ## Styl
-
 - Používej jeden název pro jednu věc.
 - Piš aktivně a používej krátká běžná slova.
 - Jedna věta nebo odrážka obsahuje jednu hlavní myšlenku.
 - Vynech výplňové úvodní fráze, opakování a marketingová přídavná jména.
 - Stručnost nesmí odstranit podmínku, hranici ani pozorovatelné chování.
+- Veď čtenáře plynule od modelu ke kódu.
 
-## Sekce (v tomhle pořadí)
+## Sekce v pořadí
+- **Pozadí** — přeskočitelný úvod, potom kontext změny.
+- **Intuice** — princip na hračkových datech, bez implementace.
+- **Změna shora dolů** — jediný průchod architekturou a kódem.
+- **Akceptační kritéria a jejich ověření** — uživatelský výsledek + test, gate nebo UAT.
+- **UAT — jak si to ověřit sám** — disposable instance a kroky `- [ ]`; každý ověří jedno chování.
+- **Kvíz** — 5 středně těžkých otázek s variantami a vysvětlením.
 
-- **Pozadí** — jak dnes funguje část systému, které se změna týká. Dvě hloubky:
-  širší úvod pro nováčka (označ jako přeskočitelný) a pak úzké pozadí ke změně.
-- **Intuice** — jádro myšlenky, ne detaily. Konkrétní příklady s hračkovými daty.
-- **Kód** — high-level průchod změnami, seskupený a seřazený pro pochopení,
-  nikdy soubor po souboru podle cest.
-- **Akceptační kritéria a jejich ověření** — tabulka, jeden řádek na kritérium:
-  srozumitelná parafráze (co uživatel dostane, ne technická formulace) a jak
-  přesně to bylo dokázáno — konkrétní test (název + soubor), gate záznam, který
-  ho spustil, a/nebo UAT scénář.
-- **UAT — jak si to ověřit sám** — číslovaný postup jako zaškrtávací seznam
-  (`- [ ]`), jeden krok = jedno pozorovatelné chování. Nejdřív popiš, jak
-  spustit disposable lokální instanci.
-- **Kvíz** — 5 otázek střední obtížnosti, které testují skutečné pochopení
-  (těžké bez porozumění, ale žádné chytáky). Každá otázka má varianty a
-  odpověď schovanou v `<details><summary>Odpověď</summary>`, uvnitř
-  s vysvětlením proč ano/ne.
+## Změna shora dolů
+Začni problémem, výsledným pravidlem a tabulkou ověřených metrik; neznámé = `—`.
+Použij zavřené `<details>` v pořadí: `<code>PRINCIPLE</code>` → `<code>FLOW</code>` → `<code>STEP</code>` → `<code>KEPT</code>` → `<code>VERIFY</code>`.
+Každý `<summary>` má štítek, název a jednovětý závěr.
+FLOW ukáže komponenty; STEP důležité symboly a soubory.
+Ve STEP vnoř jen podstatné soubory; stav je 🟡 `<a href="<diff-url>"><code>MODIFIED</code></a>` nebo 🟢 `<a href="<diff-url>"><code>NEW</code></a>` a vede na PR Files či compare.
+Název souboru je odkaz na HEAD řádky (`.../blob/<sha>/<path>#Lx-Ly`). URL nehádej; mechanické změny vynech.
+Ukaž krátký blok v jazyce souboru s výsledným kódem, ne raw diff. Celý diff patří jen do odkazu.
 
-## Formát
+## Formát a uložení
+Vytvoř `explanation.md` pod `~/Workspace/specs/<projekt>/` (`<projekt>` = basename origin remote bez `.git`):
+- kontrakt: `<název>/explanation.md`; PR: `~/Workspace/specs/<projekt>/pr-<n>-<slug>/explanation.md`; ref: `YYYY-MM-DD-<slug>/explanation.md` (`date +%F`).
+Používej malé `mermaid` diagramy s ukázkovými daty, žádné ASCII; bloky kódu mají jazyk.
+Odpověď kvízu musí být HTML: `<details><summary>Odpověď</summary><p><strong>B.</strong> Proč ano; proč ostatní ne.</p></details>`.
+Na konci vypiš absolutní cestu.
 
-- Jediný markdown soubor. Pipeline: `explanation.md` **vedle kontraktu**
-  (`~/Workspace/specs/<projekt>/<název>/explanation.md`). Standalone bez
-  kontraktu: `~/Workspace/diffs/YYYY-MM-DD-<slug>.md` (datum přes `date +%F`,
-  nikdy nehádej; adresář založ). Na konci vypiš absolutní cestu — wf-impl ji
-  čeká ve svém reportu.
-- Diagramy jako **mermaid** bloky (` ```mermaid `) — vyber malou rodinu tvarů
-  a recykluj ji: tok dat mezi komponentami, stavový diagram, zjednodušené UI.
-  Vždy s ukázkovými daty. Žádné ASCII diagramy.
-- Kód v ohraničených blocích s jazykem. Klíčové koncepty a edge cases jako
-  citace (`>`) nebo tučný lead-in.
-- Piš s jasností a spádem Martina Kleppmanna — poutavě, plynulé přechody.
+## Plannotator
+Po zápisu vytvoř share URL bez lokálního serveru; nespouštěj `plannotator annotate`:
+```bash
+SHARE_URL="$(node -e 'const fs=require("node:fs"),z=require("node:zlib");const p=fs.readFileSync(process.argv[1],"utf8");console.log("https://share.plannotator.ai/#"+z.deflateRawSync(JSON.stringify({p,a:[]})).toString("base64url"))' "$EXPLANATION_PATH")"; printf 'Plannotator: %s\n' "$SHARE_URL"
+```
+Hash je nešifrovaný; pro citlivý obsah URL nevytvářej. Short link jen se souhlasem.

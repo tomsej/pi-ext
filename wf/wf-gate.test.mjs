@@ -6,7 +6,7 @@
 // - WF_GATE_FAKE_LOAD: perf idle-detection must be deterministic in CI.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, existsSync, readdirSync, unlinkSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, basename, dirname } from 'node:path'
 import { spawnSync, execFileSync } from 'node:child_process'
@@ -267,13 +267,21 @@ test('check: a review focus without an agent fails instead of emptying the round
   assert.match(r.stdout + r.stderr, /smoke/)
 })
 
-test('check: depends_on is rejected — nothing enforces ordering any more', () => {
+test('check: depends_on is rejected with an enforced after migration hint', () => {
   const dir = tmp()
   const file = writeSpec(dir, baseFrontmatter({ depends_on: ['alpha'] }))
   const r = runGate(['check', file], { cwd: dir })
   assert.equal(r.status, 1)
   assert.match(r.stdout + r.stderr, /depends_on/)
-  assert.match(r.stdout + r.stderr, /order|sequenc/i)
+  assert.match(r.stdout + r.stderr, /after/)
+})
+
+test('check: a contract cannot depend on itself via after', () => {
+  const dir = tmp()
+  const file = writeSpec(dir, baseFrontmatter({ name: 'demo-spec', after: ['demo-spec'] }))
+  const r = runGate(['check', file], { cwd: dir })
+  assert.equal(r.status, 1)
+  assert.match(r.stdout + r.stderr, /after.*itself/i)
 })
 
 test('check: judge entry naming a roster agent passes', () => {
@@ -361,6 +369,25 @@ test('verify: quick mode runs the quick set, not full', () => {
   const rep = verifyJson(r)
   assert.equal(r.status, 0)
   assert.ok(rep.entries.every(e => e.id !== 'full'))
+})
+
+test('verify: preflight runs its own cheap environment checks', () => {
+  const dir = tmp()
+  const fm = baseFrontmatter()
+  fm.verify.preflight = [{ id: 'environment', kind: 'hard', command: 'true', timeoutMs: 5000 }]
+  fm.verify.quick[0].command = 'exit 1'
+  const file = writeSpec(dir, fm)
+  const r = runGate(['verify', file, 'preflight', '--json'], { cwd: dir })
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  assert.equal(JSON.parse(r.stdout).entries[0].id, 'environment')
+})
+
+test('verify: preflight is a compatible no-op for older contracts', () => {
+  const dir = tmp()
+  const file = writeSpec(dir, baseFrontmatter())
+  const r = runGate(['verify', file, 'preflight', '--json'], { cwd: dir })
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  assert.equal(JSON.parse(r.stdout).skipped, true)
 })
 
 test('verify: timeout kills the command and fails', () => {
@@ -578,6 +605,36 @@ test('status: spec with no branch and no PR is ready', () => {
   assert.equal(rep.specs.find(s => s.name === 'alpha').state, 'ready')
 })
 
+test('status: an unmet after dependency blocks launch', () => {
+  const dir = gitRepo()
+  writeSpec(dir, baseFrontmatter({ name: 'alpha', after: ['beta'] }), { name: 'alpha' })
+  writeSpec(dir, baseFrontmatter({ name: 'beta' }), { name: 'beta' })
+  commitAll(dir)
+  const alpha = statusJson(dir, ghShim(dir, { prs: [] })).specs.find(s => s.name === 'alpha')
+  assert.equal(alpha.state, 'blocked')
+  assert.deepEqual(alpha.blockedBy, ['beta'])
+})
+
+test('status: a merged after dependency unblocks launch', () => {
+  const dir = gitRepo()
+  writeSpec(dir, baseFrontmatter({ name: 'alpha', after: ['beta'] }), { name: 'alpha' })
+  writeSpec(dir, baseFrontmatter({ name: 'beta' }), { name: 'beta' })
+  commitAll(dir)
+  const env = ghShim(dir, { prs: [{ number: 2, state: 'MERGED', isDraft: false, body: '<!-- wf-spec: beta -->' }] })
+  const alpha = statusJson(dir, env).specs.find(s => s.name === 'alpha')
+  assert.equal(alpha.state, 'ready')
+})
+
+test('status: an after cycle is reported instead of looking permanently blocked', () => {
+  const dir = gitRepo()
+  writeSpec(dir, baseFrontmatter({ name: 'alpha', after: ['beta'] }), { name: 'alpha' })
+  writeSpec(dir, baseFrontmatter({ name: 'beta', after: ['alpha'] }), { name: 'beta' })
+  commitAll(dir)
+  const specs = statusJson(dir, ghShim(dir, { prs: [] })).specs
+  assert.equal(specs.find(s => s.name === 'alpha').state, 'cycle')
+  assert.equal(specs.find(s => s.name === 'beta').state, 'cycle')
+})
+
 // Branch names are chosen by sc from the task text (`feat/permissions-single-table`)
 // and worktree dirs are codenames (`sc-zero-perovskite-654b`), so neither carries
 // the contract slug. The conducted worktree announces itself in .wf/active instead.
@@ -605,6 +662,47 @@ test('status: a worktree conducting another contract does not mark this one runn
   const rep = statusJson(dir, ghShim(dir, { prs: [] }))
   assert.equal(rep.specs.find(s => s.name === 'alpha').state, 'ready')
   assert.equal(rep.specs.find(s => s.name === 'beta').state, 'running')
+})
+
+test('status: two worktrees conducting one contract are reported as a duplicate', () => {
+  const dir = gitRepo()
+  const file = writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
+  commitAll(dir)
+  for (const name of ['one', 'two']) {
+    const wt = join(dir, `wt-${name}`)
+    execFileSync('git', ['-C', dir, 'worktree', 'add', '-q', '-b', `feat/${name}`, wt])
+    runGate(['begin', file], { cwd: wt })
+  }
+  const alpha = statusJson(dir, ghShim(dir, { prs: [] })).specs.find(s => s.name === 'alpha')
+  assert.equal(alpha.state, 'duplicate')
+  assert.equal(alpha.worktrees.length, 2)
+})
+
+test('status: an open PR does not hide duplicate worktrees', () => {
+  const dir = gitRepo()
+  const file = writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
+  commitAll(dir)
+  for (const name of ['one', 'two']) {
+    const wt = join(dir, `wt-pr-${name}`)
+    execFileSync('git', ['-C', dir, 'worktree', 'add', '-q', '-b', `feat/pr-${name}`, wt])
+    runGate(['begin', file], { cwd: wt })
+  }
+  const env = ghShim(dir, { prs: [{ number: 3, state: 'OPEN', isDraft: true, body: '<!-- wf-spec: alpha -->' }] })
+  const alpha = statusJson(dir, env).specs.find(s => s.name === 'alpha')
+  assert.equal(alpha.state, 'duplicate')
+  assert.equal(alpha.pr.number, 3)
+})
+
+test('status: a detached conducted worktree is still running', () => {
+  const dir = gitRepo()
+  const file = writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
+  commitAll(dir)
+  const wt = join(dir, 'wt-detached')
+  execFileSync('git', ['-C', dir, 'worktree', 'add', '-q', '--detach', wt])
+  runGate(['begin', file], { cwd: wt })
+  const alpha = statusJson(dir, ghShim(dir, { prs: [] })).specs.find(s => s.name === 'alpha')
+  assert.equal(alpha.state, 'running')
+  assert.equal(alpha.branch, null)
 })
 
 test('status: open PR carrying the invisible wf-spec comment → pr-open with unresolved count', () => {
@@ -646,7 +744,52 @@ test('status: missing specs dir yields an empty list, not an error', () => {
   assert.deepEqual(rep.specs, [])
 })
 
-// ── receipts (begin / verify / attest) ──────────────────────────────────────
+// ── claims + receipts (claim / begin / verify / attest) ─────────────────────
+
+test('claim: only one launcher owns a contract until begin consumes the claim', () => {
+  const dir = gitRepo()
+  const file = writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
+  commitAll(dir)
+  const env = { WF_GATE_CLAIM_DIR: join(dir, 'claims') }
+  assert.equal(runGate(['claim', file], { cwd: dir, env }).status, 0)
+  assert.notEqual(runGate(['claim', file], { cwd: dir, env }).status, 0)
+  assert.equal(runGate(['begin', file], { cwd: dir, env }).status, 0)
+  assert.equal(runGate(['claim', file], { cwd: dir, env }).status, 0)
+})
+
+test('status: a claimed contract is launching before its worktree begins', () => {
+  const dir = gitRepo()
+  const file = writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
+  commitAll(dir)
+  const env = { ...ghShim(dir, { prs: [] }), WF_GATE_CLAIM_DIR: join(dir, 'claims') }
+  assert.equal(runGate(['claim', file], { cwd: dir, env }).status, 0)
+  const alpha = statusJson(dir, env).specs.find(s => s.name === 'alpha')
+  assert.equal(alpha.state, 'launching')
+})
+
+test('claim: a stale launcher claim is reclaimed', () => {
+  const dir = gitRepo()
+  const file = writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
+  commitAll(dir)
+  const base = { WF_GATE_CLAIM_DIR: join(dir, 'claims') }
+  assert.equal(runGate(['claim', file], { cwd: dir, env: base }).status, 0)
+  assert.equal(runGate(['claim', file], { cwd: dir, env: { ...base, WF_GATE_CLAIM_TTL_MS: '-1' } }).status, 0)
+})
+
+test('claim: a crashed launcher directory without metadata expires', () => {
+  const dir = gitRepo()
+  const file = writeSpec(dir, baseFrontmatter({ name: 'alpha' }), { name: 'alpha' })
+  commitAll(dir)
+  const claimDir = join(dir, 'claims')
+  const base = { WF_GATE_CLAIM_DIR: claimDir }
+  assert.equal(runGate(['claim', file], { cwd: dir, env: base }).status, 0)
+  const [key] = readdirSync(claimDir)
+  unlinkSync(join(claimDir, key, 'claim.json'))
+  const expired = { ...base, WF_GATE_CLAIM_TTL_MS: '-1' }
+  assert.equal(statusJson(dir, expired).specs.find(s => s.name === 'alpha').state, 'ready')
+  const r = runGate(['claim', file], { cwd: dir, env: expired })
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+})
 
 function head(dir) {
   return execFileSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
@@ -693,6 +836,40 @@ test('verify in a git repo appends a receipt with HEAD and result', () => {
   assert.equal(rec.result, 'pass')
   assert.equal(rec.head, head(dir))
   assert.equal(rec.dirty, false)
+})
+
+test('verify persists command logs and its JSON report at the tested HEAD', () => {
+  const dir = gitRepo()
+  const fm = baseFrontmatter({ name: 'alpha' })
+  fm.verify.full[0].command = 'echo durable-output'
+  writeSpec(dir, fm, { name: 'alpha' })
+  commitAll(dir)
+  runGate(['begin', 'specs/alpha/contract.md'], { cwd: dir })
+  const r = runGate(['verify', 'specs/alpha/contract.md', 'full', '--json'], { cwd: dir })
+  assert.equal(r.status, 0, r.stdout + r.stderr)
+  const testedHead = head(dir)
+  const [run] = readdirSync(join(dir, '.wf', 'logs', testedHead, 'full'))
+  assert.match(readFileSync(join(dir, '.wf', 'logs', testedHead, 'full', run, 'full.log'), 'utf8'), /durable-output/)
+  const [reportFile] = readdirSync(join(dir, '.wf', 'verify', testedHead))
+  const report = JSON.parse(readFileSync(join(dir, '.wf', 'verify', testedHead, reportFile), 'utf8'))
+  assert.equal(report.result, 'pass')
+  assert.ok(report.entries[0].durationMs >= 0)
+})
+
+test('verify fails and attributes artifacts to the original HEAD if a command commits', () => {
+  const dir = gitRepo()
+  const fm = baseFrontmatter({ name: 'alpha' })
+  fm.verify.full[0].command = "echo changed > changed.txt && git add changed.txt && git commit -qm changed"
+  writeSpec(dir, fm, { name: 'alpha' })
+  commitAll(dir)
+  const originalHead = head(dir)
+  runGate(['begin', 'specs/alpha/contract.md'], { cwd: dir })
+  const r = runGate(['verify', 'specs/alpha/contract.md', 'full', '--json'], { cwd: dir })
+  assert.equal(r.status, 1, r.stdout + r.stderr)
+  const reportFile = readdirSync(join(dir, '.wf', 'verify', originalHead))[0]
+  const report = JSON.parse(readFileSync(join(dir, '.wf', 'verify', originalHead, reportFile), 'utf8'))
+  assert.equal(report.result, 'fail')
+  assert.match(report.entries.at(-1).note, /HEAD changed/i)
 })
 
 test('attest review appends an attest receipt at HEAD', () => {
@@ -760,6 +937,18 @@ test('hook: commits after the receipts → pr create blocked as stale', () => {
   assert.match(r.stderr, /HEAD|stale/i)
 })
 
+test('hook: a quick verify cannot refresh a full verify from an older HEAD', () => {
+  const dir = wfRepo()
+  runGate(['verify', 'specs/alpha/contract.md', 'full'], { cwd: dir })
+  writeFileSync(join(dir, 'review-fix.txt'), 'changed after full\n')
+  commitAll(dir)
+  runGate(['verify', 'specs/alpha/contract.md', 'quick'], { cwd: dir })
+  runGate(['attest', 'review', 'specs/alpha/contract.md'], { cwd: dir })
+  const r = runHook('gh pr create --draft', dir)
+  assert.equal(r.status, 2)
+  assert.match(r.stderr, /full.*HEAD|stale.*full/i)
+})
+
 test('hook: gh pr merge is always blocked in a wf worktree', () => {
   const dir = wfRepo()
   runGate(['verify', 'specs/alpha/contract.md', 'full'], { cwd: dir })
@@ -773,6 +962,30 @@ test('hook: unrelated gh pr command passes through', () => {
   const dir = wfRepo()
   assert.equal(runHook('gh pr view 7 --json state', dir).status, 0)
   assert.equal(runHook("gh pr list --search 'create merge'", dir).status, 0)
+})
+
+test('hook: direct full gate commands are blocked in a conducted worktree', () => {
+  const dir = wfRepo()
+  for (const command of [
+    'just gate alpha',
+    'just gate alpha full',
+    './scripts/gate.sh alpha',
+    './scripts/gate.sh alpha full',
+    'bash scripts/gate.sh alpha full',
+    '/repo/scripts/gate.sh alpha full',
+    'CH_GATE_SKIP_PERF=1 just gate alpha full',
+    'echo ready\njust gate alpha full',
+    'just gate alpha fast && just gate alpha full',
+    'scripts/gate.sh alpha perf\nscripts/gate.sh alpha',
+  ]) {
+    const r = runHook(command, dir)
+    assert.equal(r.status, 2, command)
+    assert.match(r.stderr, /wf-gate verify/i)
+  }
+  assert.equal(runHook(`node ${GATE} verify specs/alpha/contract.md full`, dir).status, 0)
+  for (const mode of ['preflight', 'fast', 'functional', 'perf']) {
+    assert.equal(runHook(`just gate alpha ${mode}`, dir).status, 0, mode)
+  }
 })
 
 test('hook: flags and aliases around the subcommand do not slip past the guard', () => {
@@ -814,6 +1027,7 @@ test('hook: dirty working tree blocks pr create even with complete receipts', ()
   const r = runHook('gh pr create --draft', dir)
   assert.equal(r.status, 2)
   assert.match(r.stderr, /uncommitted/i)
+  assert.match(r.stderr, /verify.*full/i)
 })
 
 test('status: a contract directory carries its artifacts and archives as one move', () => {

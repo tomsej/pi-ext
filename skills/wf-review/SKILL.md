@@ -1,86 +1,78 @@
 ---
 name: wf-review
-description: Review fáze workflow kontraktu — deterministický scope, panel reviewerů z kontraktu (čerstvý kontext, cross-model přes subagent_spawn), ověřené nálezy, fixy, quick gate, attest. Volá ji wf-impl po implementaci, nebo uživatel ručně s cestou ke spec.
+description: Review a change with an optional workflow contract using deterministic scope, adaptive cross-model reviewers, verified findings, fixes, and a gate. Use standalone or from wf-impl.
+disable-model-invocation: true
 ---
 
-# /wf-review — review fáze kontraktu
+# /wf-review
 
-Argument: absolutní cesta ke kontraktu (mimo repo). Vlastníš review: revieweři
-jen reportují, ověřuješ, opravuješ a commituješ ty. Stejné, ať volá pipeline
-nebo uživatel.
+Argument: optional absolute path to a contract. Without a contract, review the
+current diff. You own the review: reviewers only report; verify every finding
+and delegate fixes sequentially. Never edit production code yourself.
 
 GATE = `node ~/Workspace/pi-ext/wf/wf-gate.mjs`
 
-## 1. Scope — deterministicky, bez LLM
+## 1. Scope
 
-TARGET = `sc worktree status --json` → `target_branch` (fallback `main`).
+TARGET = `sc worktree status --json` → `target_branch` (fallback `main`). Run
+`ocr delegate preview --from TARGET --to HEAD`, restore excluded product files
+such as `.md` when they carry the change or the contract names them, then load
+rules with `ocr delegate rule <files>`. Keep lockfiles and generated code out.
 
-1. `ocr delegate preview --from TARGET --to HEAD` — soubory, churn, merge_base.
-2. OCR vylučuje podle přípony: lockfily a generovaný kód mají zůstat venku, ale
-   vylučuje i `.md`, a v některých repech jsou prompty/skills/docs PRODUKT.
-   Vyloučený soubor, který kontrakt jmenuje ve Scope nebo který nese smysl
-   změny, VRAŤ na seznam (diff: `git diff <merge_base>..HEAD -- <path>`).
-3. `ocr delegate rule <soubory>` — pravidla projektu seskupená podle obsahu.
-4. `.wf/review-packet.md`: cesta ke kontraktu, refy + merge_base, finální seznam
-   souborů, skupiny pravidel. Každý reviewer dostane tenhle jeden packet — scope
-   nikdo neodvozuje znovu.
+Write `.wf/review-packet.md`: contract path or “no contract”, refs, `merge_base`,
+final files, diff stats, and rules. Every reviewer gets it. Without `ocr`, use
+`git diff --stat TARGET...HEAD` and disclose the fallback.
 
-Bez `ocr` slož packet z `git diff --stat TARGET...HEAD` a napiš to do reportu.
+## 2. Pick the panel
 
-## 2. Kola — max 2, tvrdý strop
+With a contract, use its exact `GATE agents <spec> --json` → `review` plan;
+never infer models from YAML. Without a contract, inspect the packet and use:
 
-Plán: `GATE agents <spec> --json` → `review` (kola × revieweři s `focus`,
-`harness`, `model`, `effort`). Modely neodhaduj z YAML.
+- docs/tests-only with no runtime behavior or sensitive config: 1 reviewer;
+- behavior changes: 2 reviewers for correctness and tests/edge cases;
+- security, auth, permissions, secrets, migrations, data integrity, concurrency,
+  public APIs, or a large cross-module diff: 3 reviewers for correctness, the
+  relevant risk, and impact/tests.
 
-**Kolo 1** — revieweře spusť PARALELNĚ přes `subagent_spawn` s jejich harnessem
-a modelem, každý čerstvý kontext. To je ta cross-model garance, nikdy je
-nesesypej na jeden model. Každý dostane packet, svůj focus, read-only instrukci
-a tenhle reportovací kontrakt:
+Read `PI_PROVIDER` and `PI_MODEL`. Reviewers must differ by model from the
+current session and each other. Prefer `claude`/`fable`,
+`codex`/`gpt-5.6-sol`, `pi`/`zai/glm-5.2`, then
+`pi`/`anthropic/claude-opus-5`. Skip matching or unavailable models, record the
+fallback, and never add reviewers merely because more models exist.
 
-- reviewer s harnessem **claude**: prompt MUSÍ začínat `/code-review` a hned za
-  ním packet + focus + kontrakt — spustí to nativní review mód Claude Code
-  (ověřeno: SDK slash command interpretuje a instrukce za ním respektuje).
-  U ostatních harnessů žádný slash prefix — codex by `/review` dostal jako
-  prostý text, nativní mód se přes subagenta spustit nedá;
-- reviewer s harnessem **pi**: do promptu přidej, ať na dopadovou analýzu
-  používá `sem_impact` (co nález rozbíjí jinde, dotčené testy) a `sem_context`
-  (kompaktní kontext entity místo čtení celých souborů);
+## 3. Review — max 2 rounds
 
-- nálezy jsou TVRZENÍ: severita + `file:line` (nálezy na úrovni kontraktu —
-  nepokryté kritérium, změna mimo scope — odkazují na kritérium) + co je špatně
-  a proč to vadí;
-- **Critical/High** = bugy, security, ztráta dat, chybějící nebo oslabené
-  pokrytí kritéria. **Medium** = výkon, chybějící error handling — s kontextem.
-  **Low** = stylové nitpicky, potichu zahoď, pokud nejsou zjevně cenné;
-- skupiny pravidel z packetu jsou jejich checklist;
-- read-only znamená i **nikdy `gh pr create` / `gh pr merge`** — endgame vlastní
-  wf-impl (u codex harnessu je tahle věta jediná obrana, guard tam není).
+Run each round's reviewers IN PARALLEL with `subagent_spawn`, each in a fresh
+context; never collapse them onto one model. Give each the packet, focus,
+read-only mode, and these rules:
 
-Plán smíš ZMENŠIT, je-li diff zjevně menší, než kontrakt čekal (napiš to) —
-nikdy pod 1 kolo × 1 reviewer, nikdy víc než 4 revieweři v kole.
+- with **claude** harness: the prompt MUST start with `/code-review`; codex would
+  treat `/review` as plain text, so other harnesses get no slash prefix;
+- with **pi** harness: use `sem_impact` for blast radius/tests and `sem_context`;
+- findings are CLAIMS: severity, `file:line`, problem, and impact; with a
+  contract also cite the violated criterion or scope;
+- Critical/High = bug, security, data loss, or uncovered criterion; Medium =
+  performance or missing error handling with context; discard Low unless useful;
+- project rules are the checklist; read-only means never `gh pr create` or
+  `gh pr merge` — for the codex harness this sentence is the only guard.
 
-Každý nález ověř proti kódu, než podle něj jednáš. Zamítni se zdůvodněním na
-úrovni kódu, nebo oprav a commitni. Významné nálezy můžou jít i do threadů
-`sc worktree review-add`. Je-li opravený nález mechanicky vymahatelný nebo se
-zjevně bude opakovat, zkodifikuj ho hned skillem `review-guards` (ast-grep
-pravidlo s testem, kvalitativní → řádek v `REVIEW_GUIDELINES.md`) a commitni
-na tutéž branch — guard jde do PR a projde review jako každá jiná změna.
-Skilly, wf pipeline ani AGENTS.md needituj nikdy; takový návrh patří do reportu.
+Save raw outputs to `.wf/reviews/<HEAD>/round-<N>/<focus>.md`; a missing planned
+report means incomplete review. Verify every finding against the code and
+explain rejections. Batch legitimate findings by **3–5** and delegate them
+sequentially; only one agent may edit at a time. Each batch ends with a commit
+and targeted test. Send repeatable mechanical findings to `review-guards`;
+never edit skills, the workflow pipeline, or AGENTS.md yourself.
 
-**Kolo 2** — jeden reviewer projde JEN oblasti změněné fixy z kola 1
-(`ocr delegate preview --from <HEAD z kola 1> --to HEAD`). Bez fixů kolo 2 celé
-přeskoč.
+Run round 2 only after fixes and only on changed areas. With a contract use its
+planned round; standalone use one best-matching reviewer.
 
-## 3. Gate a attest
+## 4. Result
 
-1. `GATE verify <spec> quick` musí projít (max 3 opravná kola na hypotézu).
-2. `GATE attest review <spec>` — vyžaduje čistý tree. Bez attestu guard odmítne
-   `gh pr create`, což je záměr; attest jen kvůli obejití guardu maří celý smysl
-   workflow.
-3. Zůstanou-li na stropu nevyřešené legitimní nálezy, fáze SELHALA: řekni to,
-   NEATTESTUJ, reportuj co zbývá.
+With a contract, `GATE verify <spec> quick` must pass (max 3 repair attempts per
+hypothesis). Without a contract, do not run `GATE agents` or `verify`; after
+fixes run targeted project tests. An unresolved finding or missing report means
+FAILED; otherwise PASS. wf-impl creates the review attest only after its final
+full gate; never create it here.
 
-## Report
-
-Nálezy opravené (s commity) a zamítnuté (se zdůvodněním), revieweři použití vs.
-plánovaní, statistika scope (soubory / vrácená vyloučení), gate, stav attestu.
+Report fixes with commits, rejections with reasons, planned/used reviewers and
+model fallbacks, artifact paths, scope stats, and gate/test results.

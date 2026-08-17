@@ -2,18 +2,20 @@
 // wf-gate — deterministic gate runner for contract-driven workflows.
 //
 // Subcommands:
-//   check  <spec.md>              lint a contract's frontmatter (guardrails)
-//   agents <spec.md> [--json]     resolve the contract's agent roster
-//   verify <spec.md> quick|full   run the contract's verification gates
-//   status [--dir specs] [--json] derive spec states from git + gh (stateless)
+//   check  <spec.md>                    lint contract frontmatter
+//   agents <spec.md> [--json]           resolve the contract's agent roster
+//   claim|release-claim <spec.md>        serialize worktree launch
+//   verify <spec.md> preflight|quick|full run verification gates
+//   status [--dir specs] [--json]       derive live spec states
 //
 // The spec is a markdown file with YAML frontmatter; see wf-gate.test.mjs and
 // the /wf skill for the schema. This script is the only non-model piece of the
 // workflow: exit codes here are authoritative, agent self-reports are not.
-import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync, appendFileSync, rmSync, realpathSync } from 'node:fs'
+import { readFileSync, readdirSync, existsSync, mkdirSync, writeFileSync, appendFileSync, rmSync, realpathSync, renameSync, statSync } from 'node:fs'
 import { spawn, execFileSync } from 'node:child_process'
 import { basename, join, resolve, dirname } from 'node:path'
 import os from 'node:os'
+import { createHash } from 'node:crypto'
 import { createRequire } from 'node:module'
 
 const require = createRequire(import.meta.url)
@@ -129,6 +131,53 @@ function specName(spec) {
   return spec.fm?.name ?? basename(dirname(resolve(spec.file)))
 }
 
+function claimPath(file) {
+  const key = createHash('sha256').update(realpathSync(resolve(file))).digest('hex')
+  return join(process.env.WF_GATE_CLAIM_DIR ?? join(os.tmpdir(), 'wf-gate-claims'), key)
+}
+
+function claimActive(file) {
+  const lock = claimPath(file)
+  if (!existsSync(lock)) return false
+  let createdAt = NaN
+  try { createdAt = Date.parse(JSON.parse(readFileSync(join(lock, 'claim.json'), 'utf8')).createdAt) } catch {
+    try { createdAt = statSync(lock).mtimeMs } catch {}
+  }
+  const ttl = Number(process.env.WF_GATE_CLAIM_TTL_MS ?? 10 * 60 * 1000)
+  return Number.isFinite(createdAt) && Date.now() - createdAt <= ttl
+}
+
+function claim(file) {
+  parseSpec(file)
+  const lock = claimPath(file)
+  mkdirSync(dirname(lock), { recursive: true })
+  let acquired = false
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      mkdirSync(lock)
+      acquired = true
+      break
+    } catch (error) {
+      if (error.code !== 'EEXIST') throw error
+      if (!claimActive(file)) {
+        const stale = `${lock}.stale-${process.pid}-${Date.now()}`
+        try { renameSync(lock, stale) } catch { fail(`claim: ${resolve(file)} changed while reclaiming; retry once`) }
+        rmSync(stale, { recursive: true, force: true })
+        continue
+      }
+      fail(`claim: ${resolve(file)} is already launching`)
+    }
+  }
+  if (!acquired) fail(`claim: could not reserve ${resolve(file)} after stale-claim recovery`)
+  writeFileSync(join(lock, 'claim.json'), JSON.stringify({ spec: realpathSync(resolve(file)), createdAt: new Date().toISOString() }) + '\n')
+  process.stdout.write(`wf-gate claim: reserved ${resolve(file)}\n`)
+}
+
+function releaseClaim(file) {
+  parseSpec(file)
+  rmSync(claimPath(file), { recursive: true, force: true })
+}
+
 // ── check ────────────────────────────────────────────────────────────────────
 
 function check(file) {
@@ -146,8 +195,9 @@ function check(file) {
   const { impl, review } = agents
 
   const verify = fm?.verify ?? {}
-  for (const mode of ['quick', 'full']) {
+  for (const mode of ['preflight', 'quick', 'full']) {
     const entries = verify[mode]
+    if (mode === 'preflight' && entries === undefined) continue
     if (!Array.isArray(entries) || entries.length === 0) {
       errors.push(`verify.${mode} is missing or empty`)
       continue
@@ -207,11 +257,15 @@ function check(file) {
     }
   }
 
-  // Ordering between contracts is the human's call in wf-run (which also reads
-  // their Scope for collisions). Silently ignoring depends_on would let someone
-  // believe sequencing is enforced when nothing enforces it.
   if (fm?.depends_on !== undefined) {
-    errors.push('depends_on is no longer supported — nothing derives ordering from it; sequence contracts yourself when wf-run offers the plan')
+    errors.push('depends_on was replaced by the enforced `after: [contract-name]` field')
+  }
+  if (fm?.after !== undefined) {
+    if (!Array.isArray(fm.after) || fm.after.some(dep => typeof dep !== 'string' || !dep.trim())) {
+      errors.push('after must be a list of contract names')
+    } else if (fm.after.includes(specName(spec))) {
+      errors.push('after cannot name the contract itself')
+    }
   }
 
   if (!/akceptační kritéria/i.test(spec.body)) {
@@ -290,6 +344,7 @@ function begin(file) {
   parseSpec(file) // validates the spec exists and parses
   mkdirSync(join(root, '.wf'), { recursive: true })
   writeFileSync(join(root, '.wf', 'active'), relSpecPath(file, root) + '\n')
+  releaseClaim(file)
   // Keep .wf/ out of the repo without touching .gitignore. In a linked worktree
   // .git is a file pointing at the real gitdir, so ask git for the path rather
   // than assuming a directory.
@@ -434,13 +489,23 @@ async function acquireFullGateLock(cwd) {
 }
 
 async function verify(file, mode, { json }) {
-  if (!['quick', 'full'].includes(mode)) fail('verify mode must be quick or full')
+  if (!['preflight', 'quick', 'full'].includes(mode)) fail('verify mode must be preflight, quick or full')
   const spec = parseSpec(file)
   const entries = [...(spec.fm?.verify?.[mode] ?? [])]
+  if (mode === 'preflight' && entries.length === 0) {
+    const report = { spec: specName(spec), mode, entries: [], skipped: true, result: 'pass' }
+    process.stdout.write(json ? JSON.stringify(report, null, 2) + '\n' : 'wf-gate verify[preflight]: SKIPPED (not declared)\n')
+    return
+  }
   if (entries.length === 0) fail(`verify.${mode} is missing or empty in ${file}`)
   const { roster } = resolveAgents(spec.fm)
 
   const cwd = process.cwd()
+  const root = repoRoot(cwd)
+  const testedHead = root ? gitState(root).head : null
+  const runId = `${Date.now()}-${process.pid}`
+  const logDir = testedHead ? join(root, '.wf', 'logs', testedHead, mode, runId) : null
+  if (logDir) mkdirSync(logDir, { recursive: true })
   const releaseLock = mode === 'full' ? await acquireFullGateLock(cwd) : null
   // Every verify run in a git repo ends with a whitespace/diff sanity check.
   if (existsSync(join(cwd, '.git'))) {
@@ -454,6 +519,8 @@ async function verify(file, mode, { json }) {
   for (const entry of entries) {
     const rec = { id: entry.id, kind: entry.kind, status: 'passed' }
     const soft = entry.severity === 'warning'
+    const startedAt = Date.now()
+    let commandLog = null
 
     if (entry.kind === 'judge') {
       const verdict = await judgeScore(entry, cwd, roster)
@@ -470,6 +537,7 @@ async function verify(file, mode, { json }) {
       rec.note = 'machine busy — perf gate deferred; must be proven by CI or a manual idle run before merge'
     } else {
       const res = await runCommand(entry.command, { timeoutMs: entry.timeoutMs, cwd })
+      commandLog = res.out + (res.err ? `\n--- stderr ---\n${res.err}` : '')
       rec.exitCode = res.code
       rec.timedOut = res.timedOut
       if (res.timedOut) {
@@ -497,6 +565,11 @@ async function verify(file, mode, { json }) {
       }
     }
 
+    rec.durationMs = Date.now() - startedAt
+    if (logDir && commandLog != null) {
+      const id = String(entry.id).replace(/[^\w.-]/g, '_')
+      writeFileSync(join(logDir, `${id}.log`), commandLog)
+    }
     if (rec.status === 'failed' && soft) {
       rec.status = 'warning'
       rec.note = `${rec.note ?? 'failed'} (severity: warning — surfaced, not blocking)`
@@ -512,16 +585,36 @@ async function verify(file, mode, { json }) {
     if (failed) break // fail fast; later entries would run against a broken tree
   }
 
-  // A crashed run cannot leak the lock: its pid dies and the next acquirer
-  // removes the stale lock, so a plain post-loop release is enough.
-  releaseLock?.()
+  const finalState = root ? gitState(root) : { head: null, dirty: false }
+  if (testedHead && finalState.head !== testedHead) {
+    failed = true
+    report.entries.push({
+      id: 'head-stability', kind: 'hard', status: 'failed', durationMs: 0,
+      note: `HEAD changed during verify: tested ${testedHead.slice(0, 10)}, observed ${finalState.head?.slice(0, 10) ?? 'none'}`,
+    })
+  }
+  if (root && finalState.dirty) {
+    failed = true
+    report.entries.push({ id: 'clean-tree', kind: 'hard', status: 'failed', durationMs: 0, note: 'working tree became dirty during verify' })
+  }
 
   report.result = failed ? 'fail' : warned ? 'pass-with-warnings' : 'pass'
-  const root = repoRoot(cwd)
-  if (root) {
-    const { head, dirty } = gitState(root)
-    if (head) appendReceipt(root, { type: 'verify', mode, spec: relSpecPath(file, root), result: report.result, head, dirty })
+  if (root && testedHead) {
+    report.head = testedHead
+    report.dirty = finalState.dirty
+    if (finalState.head !== testedHead) report.observedHead = finalState.head
+    const reportDir = join(root, '.wf', 'verify', testedHead)
+    mkdirSync(reportDir, { recursive: true })
+    writeFileSync(join(reportDir, `${mode}-${runId}.json`), JSON.stringify(report, null, 2) + '\n')
+    appendReceipt(root, {
+      type: 'verify', mode, spec: relSpecPath(file, root), result: report.result,
+      head: testedHead, dirty: finalState.dirty, ...(finalState.head !== testedHead ? { observedHead: finalState.head } : {}),
+    })
   }
+
+  // Keep the full lock until its durable report and receipt are written.
+  // A crash leaves a dead pid that the next acquirer removes.
+  releaseLock?.()
   if (json) process.stdout.write(JSON.stringify(report, null, 2) + '\n')
   else process.stdout.write(`wf-gate verify[${mode}]: ${report.result.toUpperCase()}\n`)
   process.exit(failed ? 1 : 0)
@@ -552,18 +645,25 @@ function conductedWorktrees(cwd) {
   const out = sh('git', ['worktree', 'list', '--porcelain'], { cwd })
   const conducted = []
   let path = null
-  for (const line of (out ?? '').split('\n')) {
-    if (line.startsWith('worktree ')) path = line.slice('worktree '.length)
-    if (!line.trim() && path) path = null
-    if (line.startsWith('branch refs/heads/') && path) {
-      const activeFile = join(path, '.wf', 'active')
-      if (!existsSync(activeFile)) continue
+  let branch = null
+  const flush = () => {
+    if (!path) return
+    const activeFile = join(path, '.wf', 'active')
+    if (existsSync(activeFile)) {
       const active = readFileSync(activeFile, 'utf8').trim()
-      conducted.push({
-        path,
-        branch: line.slice('branch refs/heads/'.length),
-        spec: resolve(path, active), // .wf/active holds a repo-relative or absolute path
-      })
+      conducted.push({ path, branch, spec: resolve(path, active) })
+    }
+    path = null
+    branch = null
+  }
+  for (const line of [...(out ?? '').split('\n'), '']) {
+    if (line.startsWith('worktree ')) {
+      flush()
+      path = line.slice('worktree '.length)
+    } else if (line.startsWith('branch refs/heads/')) {
+      branch = line.slice('branch refs/heads/'.length)
+    } else if (!line.trim()) {
+      flush()
     }
   }
   return conducted
@@ -631,32 +731,55 @@ function status({ dir, json }) {
     : [] // no specs yet for this project — an empty report, not an error
   const conducted = conductedWorktrees(cwd)
   const fetched = files.length ? allPrs(cwd) : []
-
-  const specs = []
-  for (const f of files) {
+  const contracts = files.map(f => {
     const file = join(specsDir, f)
     const spec = parseSpec(file)
-    const name = specName(spec)
+    return { file, spec, name: specName(spec) }
+  })
+  const dependencies = new Map(contracts.map(({ name, spec }) => [name, spec.fm?.after ?? []]))
+  const reaches = (name, target, seen = new Set()) => {
+    if (seen.has(name)) return false
+    seen.add(name)
+    return (dependencies.get(name) ?? []).some(dep => dep === target || reaches(dep, target, seen))
+  }
+  const cycles = new Set(contracts.filter(({ name }) => reaches(name, name)).map(({ name }) => name))
+
+  const specs = []
+  for (const { file, spec, name } of contracts) {
     const rec = { name, file }
 
     const prs = prsForSpec(name, fetched)
     const merged = prs?.find(p => p.state === 'MERGED')
     const open = prs?.find(p => p.state === 'OPEN')
-    const worktree = conducted.find(w => samePath(w.spec, file))
+    const worktrees = conducted.filter(w => samePath(w.spec, file))
+    const claimed = claimActive(file)
+    const blockedBy = (spec.fm?.after ?? []).filter(dep => !prsForSpec(dep, fetched)?.some(p => p.state === 'MERGED'))
 
     if (merged) {
       rec.state = 'done'
       rec.pr = merged
+    } else if (worktrees.length > 1) {
+      rec.state = 'duplicate'
+      rec.worktrees = worktrees.map(({ path, branch }) => ({ path, branch }))
+      if (open) rec.pr = open
     } else if (open) {
       rec.state = 'pr-open'
       rec.pr = open
       rec.unresolvedThreads = unresolvedThreads(open.number, cwd)
-    } else if (worktree) {
+    } else if (worktrees.length === 1) {
+      const [worktree] = worktrees
       rec.state = 'running'
       rec.branch = worktree.branch
       rec.worktree = worktree.path
-      const last = sh('git', ['log', '-1', '--format=%cr', worktree.branch], { cwd })
+      const last = sh('git', ['log', '-1', '--format=%cr'], { cwd: worktree.path })
       if (last) rec.lastCommit = last
+    } else if (claimed) {
+      rec.state = 'launching'
+    } else if (cycles.has(name)) {
+      rec.state = 'cycle'
+    } else if (blockedBy.length) {
+      rec.state = 'blocked'
+      rec.blockedBy = blockedBy
     } else {
       rec.state = 'ready'
     }
@@ -673,7 +796,11 @@ function status({ dir, json }) {
   for (const s of specs) {
     const detail = s.state === 'done' ? `PR #${s.pr.number} merged — archive the spec`
       : s.state === 'pr-open' ? `PR #${s.pr.number}${s.pr.isDraft ? ' (draft)' : ''}${s.unresolvedThreads ? `, ${s.unresolvedThreads} unresolved thread(s)` : ''}`
-      : s.state === 'running' ? `${s.branch}${s.lastCommit ? `, last commit ${s.lastCommit}` : ''}`
+      : s.state === 'duplicate' ? `${s.worktrees.length} worktrees — stop and reconcile before continuing`
+      : s.state === 'launching' ? 'launcher holds the contract claim — do not retry create'
+      : s.state === 'cycle' ? 'invalid after dependency cycle'
+      : s.state === 'blocked' ? `waiting for: ${s.blockedBy.join(', ')}`
+      : s.state === 'running' ? `${s.branch ?? '(detached)'}${s.lastCommit ? `, last commit ${s.lastCommit}` : ''}`
       : (s.note ?? '')
     process.stdout.write(pad(s.name, 28) + pad(s.state, 12) + detail + '\n')
   }
@@ -692,11 +819,17 @@ if (cmd === 'check') {
   if (!argv[1]) fail('usage: wf-gate agents <spec.md> [--json]')
   agents(argv[1], { json })
 } else if (cmd === 'verify') {
-  if (!argv[1] || !argv[2]) fail('usage: wf-gate verify <spec.md> quick|full [--json]')
+  if (!argv[1] || !argv[2]) fail('usage: wf-gate verify <spec.md> preflight|quick|full [--json]')
   await verify(argv[1], argv[2], { json })
 } else if (cmd === 'status') {
   const dirIdx = argv.indexOf('--dir')
   status({ dir: dirIdx !== -1 ? argv[dirIdx + 1] : null, json })
+} else if (cmd === 'claim') {
+  if (!argv[1]) fail('usage: wf-gate claim <spec.md>')
+  claim(argv[1])
+} else if (cmd === 'release-claim') {
+  if (!argv[1]) fail('usage: wf-gate release-claim <spec.md>')
+  releaseClaim(argv[1])
 } else if (cmd === 'begin') {
   if (!argv[1]) fail('usage: wf-gate begin <spec.md>')
   begin(argv[1])
@@ -704,5 +837,5 @@ if (cmd === 'check') {
   if (!argv[1] || !argv[2]) fail('usage: wf-gate attest review <spec.md>')
   attest(argv[1], argv[2])
 } else {
-  fail('usage: wf-gate check|agents|verify|status|begin|attest …')
+  fail('usage: wf-gate check|agents|verify|status|claim|release-claim|begin|attest …')
 }

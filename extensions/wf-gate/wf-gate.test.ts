@@ -77,6 +77,13 @@ test("blocks gh pr merge in a conducted worktree", async () => {
 	expect(result?.reason).toMatch(/merge/i);
 });
 
+test("blocks a direct full gate that would bypass receipts", async () => {
+	const handler = loadExtension();
+	const result = await handler({ toolName: "bash", input: { command: "CH_GATE_SKIP_PERF=1 just gate alpha" } }, { cwd: wfRepo() });
+	expect(result?.block).toBe(true);
+	expect(result?.reason).toMatch(/wf-gate verify/i);
+});
+
 test("lets unrelated commands and non-bash tools through", async () => {
 	const handler = loadExtension();
 	const cwd = wfRepo();
