@@ -114,17 +114,9 @@ Deactivates tools that cost more prompt tokens than they return: `hypa_read`/`hy
 
 Session archiver and cleaner. `/snap` scans all sessions, classifies them (delete trivial ones, archive old ones, keep active ones), and lets you review before executing. `/archive` browses archived sessions with search, restore, and permanent delete.
 
-### [Session Query](extensions/session-query/)
-
-Gives the model a tool to query previous pi sessions for context, decisions, or code changes. Uses an uncapped VCC summary (~9K tokens) by default, with optional `detailed: true` mode (~80K tokens) for queries that need exact file contents or tool output. Works with the handoff extension to let a new session look up details from its parent.
-
 ### [Handoff](extensions/handoff/)
 
 `/handoff <goal>` transfers context to a fresh pi session running in a new cmux tab. Uses pi-vcc's algorithmic compaction (no LLM calls) to build a summary, plus algorithmic extraction of git state, working files, and language detection. Includes current tasks from pi-tasks. The new session starts with the summary + goal as its initial prompt.
-
-### [Permissions](extensions/permissions/)
-
-Three-mode permission system: `yolo` (everything allowed), `safe` (rule-based checks, asks for unknown bash commands), `read-only` (no repo/home writes, built-in edits restricted to `/tmp`, bash restricted to safe read-only commands). `/mode [yolo|safe|read-only]` to switch. Rules merge project (`.agents/permissions.json`) → global (`~/.pi/agent/permissions.json`) → built-ins.
 
 ### [cmux](extensions/cmux/)
 
@@ -133,10 +125,6 @@ Native integration with [cmux](https://github.com/badlogic/cmux). Context-aware 
 ### [Superconductor](extensions/superconductor/)
 
 Native integration with [Superconductor](https://superconductor.dev) via the `sc` CLI. Footer pill with the Superconductor-owned target branch and diff size, a `superconductor_worktree` tool for the model (status, diff, target branch, list/create worktrees), and commands (`/sc-fork`, `/sc-worktree`). Silent no-op when not running inside Superconductor.
-
-### [Ask User Question](extensions/ask-user-question/)
-
-Registers an `ask_user_question` tool the model uses to ask 1–4 structured clarifying questions (with 2–4 options each) instead of asking in plain text. Interactive UI with optional multi-select and short header labels for a tab bar.
 
 ### [wf-gate](extensions/wf-gate/)
 
@@ -171,7 +159,6 @@ A contract names agents from a roster instead of repeating models: `impl: sol`, 
 | [wf-explain](skills/wf-explain/) | Rich Czech explanation of a change as a standalone interactive HTML file |
 | [wf-status](skills/wf-status/) | Truthful state of all contracts (derived from git + gh) plus next actions |
 | [sem](skills/sem/) | Entity-aware change analysis workflow — prefer `sem_context` and `sem_impact`, use `sem_diff` selectively for summaries and reviews |
-| [session-query](skills/session-query/) | Guide for querying past pi sessions via the `session-query` tool |
 | [visit-webpage](skills/visit-webpage/) | Fetch and extract content from a URL as markdown (via Jina Reader), or download images |
 | [web-search](skills/web-search/) | Lightweight web search via the Jina Search API — no browser required |
 
@@ -186,7 +173,6 @@ A contract names agents from a roster instead of repeating models: `impl: sol`, 
 Most extensions work out of the box. Notable config:
 
 - **Leader Key** — edit `extensions/leader-key/favourite-models.json` to set your favourite model presets
-- **Permissions** — edit `~/.pi/agent/permissions.json` (global) or `.agents/permissions.json` (project) to add bash rules; use `/mode` to switch modes
 - **pi-sem** — `npm install` should fetch the optional `@ataraxy-labs/sem` wrapper automatically; otherwise install `sem` globally with Homebrew or Cargo
 
 ## License

@@ -4,4 +4,4 @@
 2. Add the entry point to `pi.extensions` in `package.json`
 3. If the extension has npm dependencies, add a `package.json` in its directory and run `npm install`
 
-Skills go in `skills/<name>/SKILL.md`, themes in `themes/*.json`, prompts in `prompts/*.md`.
+Skills go in `skills/<name>/SKILL.md` **and** must be registered in `pi.skills` in `package.json`, themes in `themes/*.json`, prompts in `prompts/*.md`.

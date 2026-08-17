@@ -1,14 +1,13 @@
 /**
  * Custom Footer Extension — Two-line compact powerline style
  *
- * Line 1:  MODE  ~/path (branch) │ 42%/200k │ ⚡ model • thinking
+ * Line 1: ~/path (branch) │ 42%/200k │ ⚡ model • thinking
  * Line 2: Provider  S ████████ 23%  ⟳ 2h 14m  W ██████░░ 67%  ⟳ 3d 5h
  *
  * Rendered as a belowEditor widget (not setFooter) so sub-bar appears below us.
  */
 
 import type { ExtensionAPI } from "@mariozechner/pi-coding-agent";
-import type { PermissionMode } from "../permissions/permissions.js";
 import { truncateToWidth, visibleWidth } from "@mariozechner/pi-tui";
 import { formatDuration } from "../worktime/worktime-core.mjs";
 import { execSync } from "node:child_process";
@@ -17,10 +16,8 @@ import { join } from "node:path";
 import {
 	buildPathString,
 	fmtTokens,
-	modePillWidth,
 	renderContextUsage,
 	renderModelInfo,
-	renderModePill,
 	renderPath,
 } from "./renderers.js";
 
@@ -55,7 +52,6 @@ function getGitBranch(cwd: string): string | null {
 // ── Extension ──────────────────────────────────────────────────────────
 
 export default function (pi: ExtensionAPI) {
-	let currentMode: PermissionMode = "safe";
 	let tuiRef: { requestRender(): void } | null = null;
 	let workedMs = 0;
 	// Captured from the footer factory — the only way an extension can read
@@ -68,11 +64,6 @@ export default function (pi: ExtensionAPI) {
 	});
 	let gitBranch: string | null = null;
 	let gitWatcher: FSWatcher | undefined;
-
-	pi.events.on("mode:change", (data: unknown) => {
-		currentMode = data as PermissionMode;
-		tuiRef?.requestRender();
-	});
 
 	pi.on("session_start", async (_event, ctx) => {
 		// Get initial git branch
@@ -146,10 +137,6 @@ export default function (pi: ExtensionAPI) {
 		const sep = theme.fg("dim", " │ ");
 		const sepW = 3;
 
-		// Mode pill
-		const pill = renderModePill(currentMode, theme);
-		const pillW = modePillWidth(currentMode);
-
 		// Path + branch
 		const pathRaw = buildPathString(process.cwd(), gitBranch);
 
@@ -173,11 +160,11 @@ export default function (pi: ExtensionAPI) {
 
 		// Layout: compute path budget from remaining space
 		const rightBlockWidth = visibleWidth(ctxRaw) + sepW + model.rawWidth + workedRawWidth;
-		const pathBudget = width - pillW - sepW - rightBlockWidth - sepW;
+		const pathBudget = width - rightBlockWidth - sepW;
 		const pathDisplay = renderPath(pathRaw, pathBudget, theme);
 
 		// Assemble
-		const segments: string[] = [pill];
+		const segments: string[] = [];
 		if (pathDisplay) segments.push(pathDisplay);
 		segments.push(ctxColored);
 		segments.push(model.text + workedText);

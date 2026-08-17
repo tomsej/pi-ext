@@ -25,9 +25,9 @@
 	"scripts": {
 		"sem:evaluate": "node extensions/pi-sem/bin/sem-eval.mjs",
 		"eval:wf": "node wf/evals/run.mjs",
-		"test": "npm run test:footer && npm run test:pills && npm run test:pi-sem && npm run test:leader-key && npm run test:workflow-boundaries && npm run test:handoff && npm run test:worktime && npm run test:vcc && npm run test:wf",
+		"test": "bun test extensions/manifest.test.ts && npm run test:footer && npm run test:pills && npm run test:pi-sem && npm run test:leader-key && npm run test:workflow-boundaries && npm run test:handoff && npm run test:worktime && npm run test:vcc && npm run test:wf",
 		"test:footer": "bun test extensions/custom-footer/status.test.ts",
-		"test:pills": "bun test extensions/tool-pills/tool-pills.test.ts",
+		"test:pills": "bun test extensions/tool-pills",
 		"test:worktime": "node --test extensions/worktime/worktime.test.mjs",
 		"test:handoff": "node --test extensions/handoff/handoff.test.mjs",
 		"test:pi-sem": "node --test extensions/pi-sem/core.test.mjs extensions/review/sem-guidance.test.mjs",
@@ -42,19 +42,16 @@
 			"./extensions/custom-footer/custom-footer.ts",
 			"./extensions/review/review.ts",
 			"./extensions/leader-key/index.ts",
-			"./extensions/permissions/permissions.ts",
-			"./extensions/session-query/index.ts",
-			"./extensions/ask-user-question/index.ts",
 			"./extensions/tool-pills/index.ts",
 			"./extensions/pi-sem/index.ts",
 			"./extensions/handoff/handoff.ts",
 			"./extensions/worktime/worktime.ts",
 			"./extensions/pi-vcc/index.ts",
+			"./extensions/pi-cloak/index.ts",
 			"./extensions/tool-trim/tool-trim.ts",
 			"./extensions/wf-gate/wf-gate.ts"
 		],
 		"skills": [
-			"./skills/commit",
 			"./skills/sem",
 			"./skills/pr-review-comments",
 			"./skills/wf",
@@ -63,7 +60,9 @@
 			"./skills/wf-review",
 			"./skills/wf-uat",
 			"./skills/wf-explain",
+			"./skills/pr-explain",
 			"./skills/wf-status",
+			"./skills/wf-quick",
 			"./skills/review-guards"
 		],
 		"prompts": [
