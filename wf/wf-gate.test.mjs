@@ -491,7 +491,10 @@ function judgeArgs(harnessBinary, agent) {
   const fm = baseFrontmatter({ agents: { j: agent } })
   fm.verify.full = [{ id: 'docs', kind: 'judge', agent: 'j', rubric: 'readable', min_score: 4 }]
   const file = writeSpec(dir, fm)
-  const r = runGate(['verify', file, 'full', '--json'], { cwd: dir, env: { PATH: `${bin}:${process.env.PATH}` } })
+  const r = runGate(['verify', file, 'full', '--json'], {
+    cwd: dir,
+    env: { HOME: dir, PATH: `${bin}:${process.env.PATH}` },
+  })
   assert.equal(r.status, 0, r.stdout + r.stderr)
   return readFileSync(log, 'utf8')
 }
